@@ -154,6 +154,10 @@ Strips skills from the system prompt when their `requires-path` frontmatter fiel
 
 Starship-style custom footer with model context, git status, costs, and token stats.
 
+#### [system-prompt-heading-levels](./pi-extensions/system-prompt-heading-levels.ts)
+
+Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings nest under Pi's system prompt sections instead of competing with them.
+
 ## Skills
 
 ### [ai-writing-tropes](./skills/ai-writing-tropes/SKILL.md)
