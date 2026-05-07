@@ -32,7 +32,7 @@ Key responsibilities:
 
 ### Web tools
 - webSearch: Search the web via Brave Search. Returns titles, links, snippets. Use --content flag for full page content. Best for documentation, API references, and current information.
-- webFetch: Fetch a specific URL and extract readable content as markdown. Use after finding relevant URLs via webSearch.
+- webFetch: Fetch a specific URL and extract readable content as markdown. Use after finding relevant URLs via webSearch. Pass the original URL; use backend "auto" by default, "jina" for clean reader markdown, or "direct" for local Readability extraction.
 
 ## Tool usage
 
@@ -58,6 +58,7 @@ Typical web workflow:
 Be frugal with web search calls. Prefer tightening one query over spraying many near-duplicate searches.
 Prefer webFetch after you already have a promising URL instead of repeating webSearch.
 Avoid \`content\` on webSearch unless you truly need content for several results at once.
+Do not manually rewrite URLs through reader/proxy services such as r.jina.ai. Pass the original source URL to webFetch and choose a backend when needed. Cite the original source URL, not reader/proxy URLs.
 
 grepGitHub and searchGitHub results are leads, not proof. Always readRepoFile the actual file before citing specific code.
 webSearch results include snippets but may be incomplete. Use webFetch to get full content when needed.

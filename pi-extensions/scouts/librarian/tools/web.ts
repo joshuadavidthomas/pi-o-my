@@ -18,6 +18,8 @@ import { Type } from "typebox";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 
 type SearchBackend = "brave" | "exa" | "firecrawl";
+type WebFetchBackend = "jina" | "direct";
+type WebFetchBackendChoice = WebFetchBackend | "auto";
 
 type WebSearchParams = {
   query: string;
@@ -238,8 +240,8 @@ function htmlToMarkdown(html: string): string {
     .trim();
 }
 
-// Fetch a URL and extract readable content as markdown
-async function fetchWebContent(
+// Fetch a URL directly and extract readable content as markdown
+async function fetchDirectWebContent(
   url: string,
   signal?: AbortSignal,
 ): Promise<{ title?: string; content: string }> {
@@ -297,6 +299,49 @@ async function fetchWebContent(
   throw new Error("Could not extract readable content from this page.");
 }
 
+function getWebFetchBackends(choice: WebFetchBackendChoice = "auto"): WebFetchBackend[] {
+  if (choice === "jina") return ["jina"];
+  if (choice === "direct") return ["direct"];
+  return ["jina", "direct"];
+}
+
+function toJinaReaderUrl(url: string): string {
+  if (url.startsWith("https://r.jina.ai/http://") || url.startsWith("http://r.jina.ai/http://")) return url;
+  return `https://r.jina.ai/http://${url}`;
+}
+
+async function fetchJinaWebContent(url: string, signal?: AbortSignal): Promise<{ content: string }> {
+  const timeoutSignal = AbortSignal.timeout(20_000);
+  const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+  const response = await fetch(toJinaReaderUrl(url), { signal: combinedSignal });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return { content: await response.text() };
+}
+
+async function fetchWebContent(
+  url: string,
+  backend: WebFetchBackendChoice = "auto",
+  signal?: AbortSignal,
+): Promise<{ title?: string; content: string; backend: WebFetchBackend }> {
+  const failures: string[] = [];
+  const backends = getWebFetchBackends(backend);
+  if (backends.length === 0) throw new Error("No web fetch backend is configured.");
+
+  for (const candidate of backends) {
+    try {
+      const result = candidate === "jina"
+        ? await fetchJinaWebContent(url, signal)
+        : await fetchDirectWebContent(url, signal);
+      return { ...result, backend: candidate };
+    } catch (error) {
+      if (signal?.aborted) throw new Error("Aborted");
+      failures.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(`Web fetch failed across configured backends. ${failures.join(" | ")}`);
+}
+
 async function searchWithBrave(params: WebSearchParams, signal?: AbortSignal): Promise<SearchResult[]> {
   const apiKey = process.env.BRAVE_API_KEY;
   if (!apiKey) throw new SearchBackendError("BRAVE_API_KEY is not set.", "brave");
@@ -337,7 +382,7 @@ async function searchWithBrave(params: WebSearchParams, signal?: AbortSignal): P
 
     if (params.content) {
       try {
-        const fetched = await fetchWebContent(url, signal);
+        const fetched = await fetchWebContent(url, "auto", signal);
         result.content = truncateText(fetched.content, 5000);
       } catch (error) {
         result.content = `(Error: ${error instanceof Error ? error.message : String(error)})`;
@@ -533,8 +578,15 @@ export function createWebSearchTool(): AgentTool<typeof webSearchSchema> {
 // Web content extraction tool
 const webFetchSchema = Type.Object({
   url: Type.String({
-    description: "URL to fetch and extract readable content from.",
+    description: "URL to fetch and extract readable content from. Pass the original URL; webFetch handles reader/browser fetching.",
   }),
+  backend: Type.Optional(Type.Union([
+    Type.Literal("auto"),
+    Type.Literal("jina"),
+    Type.Literal("direct"),
+  ], {
+    description: "Fetch strategy. Use auto by default, jina for clean reader markdown, or direct for local Readability extraction.",
+  })),
 });
 
 export function createWebFetchTool(): AgentTool<typeof webFetchSchema> {
@@ -547,8 +599,8 @@ export function createWebFetchTool(): AgentTool<typeof webFetchSchema> {
 
     async execute(_toolCallId, params, signal) {
       try {
-        const { title, content } = await fetchWebContent(params.url, signal);
-        const parts: string[] = [];
+        const { title, content, backend } = await fetchWebContent(params.url, params.backend as WebFetchBackendChoice | undefined, signal);
+        const parts: string[] = [`Fetched with backend: ${backend}\nOriginal URL: ${params.url}\n`];
         if (title) {
           parts.push(`# ${title}\n`);
         }
