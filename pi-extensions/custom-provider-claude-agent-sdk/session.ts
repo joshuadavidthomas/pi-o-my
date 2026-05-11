@@ -7,6 +7,7 @@ import { SdkInputQueue, type SdkUserMessage } from "./sdk/queue.js";
 import { ToolBridge } from "./tools/bridge.js";
 
 const SESSION_ENTRY_TYPE = "claude-agent-sdk-session";
+const EVENT_ENTRY_TYPE = "claude-agent-sdk-event";
 
 export type SessionManager = Pick<PiSessionManager, "getBranch" | "getEntries" | "getSessionId" | "getLeafId">;
 
@@ -16,7 +17,27 @@ export interface SessionContinuity {
   lastClaudeModelId: string | null;
 }
 
+interface SessionEventEntry {
+  event:
+    | "sdk_session_started"
+    | "sdk_session_resumed"
+    | "sdk_session_captured"
+    | "sdk_session_reset"
+    | "sdk_session_rehydrated"
+    | "sdk_query_closed"
+    | "sdk_auto_compact_boundary";
+  piSessionId: string;
+  sdkSessionId?: string | null;
+  previousSdkSessionId?: string | null;
+  syncedThroughEntryId?: string | null;
+  modelId?: string | null;
+  reason?: string;
+  leafId?: string | null;
+  details?: Record<string, unknown>;
+}
+
 type PersistSessionEntry = (data: SessionContinuity) => void;
+type PersistEventEntry = (data: SessionEventEntry) => void;
 
 function loadContinuity(sessionManager: SessionManager): SessionContinuity {
   let data: SessionContinuity = {
@@ -58,6 +79,22 @@ function loadContinuity(sessionManager: SessionManager): SessionContinuity {
   return data;
 }
 
+function isStaleExtensionContextError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("stale after session replacement or reload");
+}
+
+function appendEntryIfActive<T>(pi: ExtensionAPI, customType: string, data: T, debugName: string) {
+  try {
+    pi.appendEntry<T>(customType, data);
+  } catch (error) {
+    if (isStaleExtensionContextError(error)) {
+      debug(`${debugName}:skipped-stale-extension-context`, { customType });
+      return;
+    }
+    throw error;
+  }
+}
+
 // Pi can evaluate this extension more than once in the same process: explicit
 // `-e` plus installed extension, reloads, parent sessions plus scouts/subagents.
 // Keep the session manager global so provider re-registration on reload uses
@@ -77,24 +114,32 @@ export class ClaudeSessionManager {
         syncedThroughEntryId: data.syncedThroughEntryId,
         lastClaudeModelId: data.lastClaudeModelId,
       });
-      pi.appendEntry<SessionContinuity>(SESSION_ENTRY_TYPE, data);
+      appendEntryIfActive(pi, SESSION_ENTRY_TYPE, data, "continuity:append");
+    };
+    const persistEvent: PersistEventEntry = (data) => {
+      debug("event:append", { ...data });
+      appendEntryIfActive(pi, EVENT_ENTRY_TYPE, data, "event:append");
     };
 
     const state = globalThis as ClaudeSessionManagerGlobal;
     const existing = state[ACTIVE_CLAUDE_SESSION_MANAGER_KEY];
     if (existing) {
       existing.persistSessionEntry = persist;
+      existing.persistEventEntry = persistEvent;
       return existing;
     }
 
-    const manager = new ClaudeSessionManager(persist);
+    const manager = new ClaudeSessionManager(persist, persistEvent);
     state[ACTIVE_CLAUDE_SESSION_MANAGER_KEY] = manager;
     return manager;
   }
 
-  private constructor(private persistSessionEntry: PersistSessionEntry) { }
+  private constructor(
+    private persistSessionEntry: PersistSessionEntry,
+    private persistEventEntry?: PersistEventEntry,
+  ) { }
 
-  hydrateSession(sessionManager: SessionManager): ClaudeSession {
+  hydrateSession(sessionManager: SessionManager, reason = "hydrate"): ClaudeSession {
     const piSessionId = sessionManager.getSessionId();
     const replacing = this.sessions.has(piSessionId);
     this.sessions.get(piSessionId)?.closeLiveQuery("Session hydrated");
@@ -103,11 +148,27 @@ export class ClaudeSessionManager {
     debug("manager:hydrateSession", {
       piSessionId,
       replacing,
+      reason,
       hasSdkSessionId: Boolean(continuity.sdkSessionId),
       hasSyncedEntryId: Boolean(continuity.syncedThroughEntryId),
     });
-    const session = new ClaudeSession(piSessionId, continuity, sessionManager, this.persistSessionEntry);
+    const session = new ClaudeSession(
+      piSessionId,
+      continuity,
+      sessionManager,
+      (data) => this.persistSessionEntry(data),
+      (data) => this.persistEventEntry?.(data),
+    );
     this.sessions.set(piSessionId, session);
+    if (replacing || reason === "session_tree" || continuity.sdkSessionId || continuity.syncedThroughEntryId || continuity.lastClaudeModelId) {
+      session.recordEvent("sdk_session_rehydrated", reason, {
+        sdkSessionId: continuity.sdkSessionId,
+        syncedThroughEntryId: continuity.syncedThroughEntryId,
+        modelId: continuity.lastClaudeModelId,
+        leafId: sessionManager.getLeafId(),
+        details: { replacing },
+      });
+    }
     return session;
   }
 
@@ -117,7 +178,13 @@ export class ClaudeSessionManager {
 
   createSession(piSessionId: string): ClaudeSession {
     debug("manager:createSession", { piSessionId, replacing: this.sessions.has(piSessionId) });
-    const session = new ClaudeSession(piSessionId, undefined, undefined, this.persistSessionEntry);
+    const session = new ClaudeSession(
+      piSessionId,
+      undefined,
+      undefined,
+      (data) => this.persistSessionEntry(data),
+      (data) => this.persistEventEntry?.(data),
+    );
     this.sessions.set(piSessionId, session);
     return session;
   }
@@ -198,6 +265,7 @@ export class ClaudeSession {
     data?: Partial<SessionContinuity>,
     sessionManager?: SessionManager,
     private readonly persistSessionEntry?: PersistSessionEntry,
+    private readonly persistEventEntry?: PersistEventEntry,
   ) {
     this.piSessionId = piSessionId;
     this.continuity = {
@@ -220,14 +288,22 @@ export class ClaudeSession {
     return this.liveConnection?.query;
   }
 
-  startLiveQuery(process: Pick<LiveSdkConnection, "query" | "inputQueue" | "abort">) {
+  startLiveQuery(
+    process: Pick<LiveSdkConnection, "query" | "inputQueue" | "abort">,
+    options: { resumeSessionId?: string; modelId: string },
+  ) {
     debug("session:startLiveQuery", {
       piSessionId: this.piSessionId,
       replacingPriorQuery: Boolean(this.liveConnection),
+      resumeSessionId: options.resumeSessionId ?? null,
       hasSdkSessionId: Boolean(this.continuity.sdkSessionId),
     });
     this.tearDownLiveConnection();
     this.liveConnection = { ...process, sdkSessionId: null };
+    this.recordEvent(options.resumeSessionId ? "sdk_session_resumed" : "sdk_session_started", undefined, {
+      sdkSessionId: options.resumeSessionId ?? null,
+      modelId: options.modelId,
+    });
   }
 
   pushUserMessage(message: SdkUserMessage): boolean {
@@ -286,12 +362,18 @@ export class ClaudeSession {
       modelChanged: this.continuity.lastClaudeModelId !== claudeModelId,
     });
 
+    const previousSdkSessionId = this.continuity.sdkSessionId;
     this.continuity = {
       ...this.continuity,
       sdkSessionId,
       lastClaudeModelId: claudeModelId,
     };
     this.persist();
+    this.recordEvent("sdk_session_captured", undefined, {
+      sdkSessionId,
+      previousSdkSessionId,
+      modelId: claudeModelId,
+    });
   }
 
   markSyncedThrough(entryId: string) {
@@ -313,15 +395,16 @@ export class ClaudeSession {
   }
 
   resetContinuity(message = "Session closed") {
+    const previous = this.continuityState();
     debug("session:resetContinuity", {
       piSessionId: this.piSessionId,
       reason: message,
-      hadSdkSessionId: Boolean(this.continuity.sdkSessionId),
-      hadSyncedEntryId: Boolean(this.continuity.syncedThroughEntryId),
+      hadSdkSessionId: Boolean(previous.sdkSessionId),
+      hadSyncedEntryId: Boolean(previous.syncedThroughEntryId),
     });
     this.closeLiveQuery(message);
     this.pendingStaleReason = null;
-    if (!this.continuity.sdkSessionId && !this.continuity.syncedThroughEntryId && !this.continuity.lastClaudeModelId) return;
+    if (!previous.sdkSessionId && !previous.syncedThroughEntryId && !previous.lastClaudeModelId) return;
 
     this.continuity = {
       sdkSessionId: null,
@@ -329,6 +412,12 @@ export class ClaudeSession {
       lastClaudeModelId: null,
     };
     this.persist();
+    this.recordEvent("sdk_session_reset", message, {
+      sdkSessionId: null,
+      previousSdkSessionId: previous.sdkSessionId,
+      syncedThroughEntryId: previous.syncedThroughEntryId,
+      modelId: previous.lastClaudeModelId,
+    });
   }
 
   // The SDK has its own internal auto-compact. When it fires (announced via
@@ -343,6 +432,14 @@ export class ClaudeSession {
       hasLive: Boolean(this.liveConnection),
     });
     this.pendingStaleReason = reason;
+  }
+
+  markSdkCompactBoundary(trigger: string, preTokens?: number) {
+    const reason = `SDK ${trigger}-compact`;
+    this.recordEvent("sdk_auto_compact_boundary", reason, {
+      details: { trigger, preTokens },
+    });
+    this.markContinuityStale(reason);
   }
 
   private classifyContinuity(): ContinuityState {
@@ -421,14 +518,38 @@ export class ClaudeSession {
     return this.requestedClaudeModelId ?? this.continuity.lastClaudeModelId;
   }
 
+  recordEvent(
+    event: SessionEventEntry["event"],
+    reason?: string,
+    override: Partial<Omit<SessionEventEntry, "event" | "piSessionId" | "reason">> = {},
+  ) {
+    this.persistEventEntry?.({
+      event,
+      piSessionId: this.piSessionId,
+      sdkSessionId: this.continuity.sdkSessionId,
+      syncedThroughEntryId: this.continuity.syncedThroughEntryId,
+      modelId: this.currentModelId(),
+      leafId: this.sessionManager?.getLeafId() ?? null,
+      reason,
+      ...override,
+    });
+  }
+
   closeLiveQuery(message = "Session closed") {
+    const hadLive = Boolean(this.liveConnection);
+    const hadActiveTurn = Boolean(this.activeTurn);
     debug("session:closeLiveQuery", {
       piSessionId: this.piSessionId,
       reason: message,
-      hadLive: Boolean(this.liveConnection),
-      hadActiveTurn: Boolean(this.activeTurn),
+      hadLive,
+      hadActiveTurn,
     });
 
+    if (hadLive) {
+      this.recordEvent("sdk_query_closed", message, {
+        details: { hadActiveTurn },
+      });
+    }
     this.abortActiveTurn(message);
     this.requestedClaudeModelId = null;
     this.mcpFingerprint = null;
@@ -462,6 +583,7 @@ export class ClaudeTurn {
 
   private currentStreamState: PiStreamState | null = null;
   private lastStopReason: string | undefined;
+  private lastUsageTotalTokens = 0;
   private completion!: Promise<void>;
   private complete!: () => void;
 
@@ -481,6 +603,10 @@ export class ClaudeTurn {
     return this.currentStreamState?.output.stopReason ?? this.lastStopReason;
   }
 
+  streamOutputUsageTotalTokens(): number {
+    return Math.max(this.currentStreamState?.output.usage.totalTokens ?? 0, this.lastUsageTotalTokens);
+  }
+
   attachStreamState(state: PiStreamState) {
     this.completion = new Promise((resolve) => {
       this.complete = resolve;
@@ -492,6 +618,7 @@ export class ClaudeTurn {
   detachStreamState(state: PiStreamState) {
     if (this.currentStreamState === state) {
       this.lastStopReason = state.output.stopReason;
+      this.lastUsageTotalTokens = Math.max(this.lastUsageTotalTokens, state.output.usage.totalTokens);
       this.currentStreamState = null;
       this.complete();
     }
@@ -514,6 +641,10 @@ export class ClaudeTurn {
     this.toolBridge.resolvePendingWithError(message);
     this.toolBridge.clearQueuedResults();
     this.lastStopReason = this.currentStreamState?.output.stopReason ?? this.lastStopReason;
+    this.lastUsageTotalTokens = Math.max(
+      this.lastUsageTotalTokens,
+      this.currentStreamState?.output.usage.totalTokens ?? 0,
+    );
     this.currentStreamState = null;
     this.toolBridge.beginMessage();
     this.complete();

@@ -45,7 +45,14 @@ function resolveClaudeExecutable(): string | undefined {
 // Max subscription to API/extra-usage even when OAuth is the auth method.
 function createSdkEnv(): NodeJS.ProcessEnv {
   const { ANTHROPIC_API_KEY: _stripped, ...inherited } = process.env;
-  return inherited;
+  return {
+    ...inherited,
+    // Pi owns conversation compaction. Letting Claude Code auto-compact its
+    // hidden transcript makes the same Pi session feel like a different model
+    // mid-run and can drop tool/server details. Users can override this by
+    // exporting DISABLE_AUTO_COMPACT=0 before starting pi.
+    DISABLE_AUTO_COMPACT: inherited.DISABLE_AUTO_COMPACT ?? "1",
+  };
 }
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -59,6 +66,20 @@ function fingerprintTools(tools: PiTool[] | undefined): string {
 
 function shouldCloseLiveQueryAfterTurn(): boolean {
   return process.argv.includes("-p") || process.argv.includes("--print");
+}
+
+function softResetThreshold(): number {
+  const raw = process.env.PI_CLAUDE_AGENT_SDK_SOFT_RESET_THRESHOLD;
+  if (!raw) return 0.85;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return 0.85;
+  return parsed <= 0 ? Number.POSITIVE_INFINITY : Math.min(parsed, 1);
+}
+
+function shouldSoftResetAfterTurn(usageTotalTokens: number, contextWindow: number | undefined): boolean {
+  if (!contextWindow || usageTotalTokens <= 0) return false;
+  return usageTotalTokens >= contextWindow * softResetThreshold();
 }
 
 const baseQueryOptions = (model: Model<Api>, abortController: AbortController) => ({
@@ -242,6 +263,8 @@ async function runSessionQuery(
 
   let turn: ClaudeTurn | undefined;
   let closeAfterTurn = false;
+  let softResetAfterTurn = false;
+  let softResetUsageTotalTokens = 0;
 
   try {
     const plan = session.prepareForTurn();
@@ -319,6 +342,8 @@ async function runSessionQuery(
 
       await activeTurn.done();
       closeAfterTurn = activeTurn.streamOutputStopReason() !== "toolUse";
+      softResetUsageTotalTokens = activeTurn.streamOutputUsageTotalTokens();
+      softResetAfterTurn = closeAfterTurn && shouldSoftResetAfterTurn(softResetUsageTotalTokens, model.contextWindow);
     } finally {
       if (noOutputTimer) clearTimeout(noOutputTimer);
       options?.signal?.removeEventListener("abort", abortPending);
@@ -334,6 +359,11 @@ async function runSessionQuery(
   } finally {
     if (turn && closeAfterTurn) {
       session.finishActiveTurn(turn);
+    }
+    if (softResetAfterTurn) {
+      session.resetContinuity(
+        `Context usage ${softResetUsageTotalTokens}/${model.contextWindow} crossed soft reset threshold`,
+      );
     }
     if (closeAfterTurn && shouldCloseLiveQueryAfterTurn()) {
       session.closeLiveQuery("Print-mode turn finished");
@@ -391,7 +421,10 @@ async function ensureLiveQuery(
   });
 
   void consumeLiveQuery(session, sdkQuery);
-  session.startLiveQuery({ query: sdkQuery, inputQueue, abort: abortController });
+  session.startLiveQuery(
+    { query: sdkQuery, inputQueue, abort: abortController },
+    { resumeSessionId, modelId: model.id },
+  );
 }
 
 async function consumeLiveQuery(session: ClaudeSession, sdkQuery: ReturnType<typeof query>) {
@@ -431,7 +464,7 @@ async function consumeLiveQuery(session: ClaudeSession, sdkQuery: ReturnType<typ
       }
 
       if (message.type === "system" && message.subtype === "compact_boundary") {
-        session.markContinuityStale(`SDK ${message.compact_metadata.trigger}-compact`);
+        session.markSdkCompactBoundary(message.compact_metadata.trigger, message.compact_metadata.pre_tokens);
         continue;
       }
 

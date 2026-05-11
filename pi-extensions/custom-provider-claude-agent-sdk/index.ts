@@ -30,7 +30,7 @@ export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
       provider: ctx.model?.provider,
       willResetContinuity: (event.reason === "new" || event.reason === "fork") && ctx.model?.provider === PROVIDER_ID,
     });
-    const session = claudeSessions.hydrateSession(ctx.sessionManager);
+    const session = claudeSessions.hydrateSession(ctx.sessionManager, `session_start:${event.reason}`);
 
     if ((event.reason === "new" || event.reason === "fork") && ctx.model?.provider === PROVIDER_ID) {
       session.resetContinuity(`session_start: reason=${event.reason}`);
@@ -51,7 +51,13 @@ export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
   pi.on("session_tree", (_event, ctx) => {
     debug("event:session_tree", { piSessionId: ctx.sessionManager.getSessionId(), provider: ctx.model?.provider });
     if (ctx.model?.provider !== PROVIDER_ID) return;
-    claudeSessions.resetSessionForStructuralChange(ctx.sessionManager);
+
+    // /tree changes Pi's active branch inside the same Pi session file. Do not
+    // blindly persist a null SDK session: the selected branch may already have
+    // valid continuity entries. Close the old live SDK query and rehydrate from
+    // the new branch, letting the next turn resume branch-local continuity or
+    // cold-start with a Pi handoff if none exists.
+    claudeSessions.hydrateSession(ctx.sessionManager, "session_tree");
   });
 
   pi.on("turn_end", (_event, ctx) => {
