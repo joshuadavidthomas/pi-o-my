@@ -186,26 +186,9 @@ Patterns for building forms with shadcn-svelte and bits-ui. Covers Field.* compo
 
 Remote control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
 
-### Rust
+### [rust](./skills/rust/SKILL.md)
 
-A suite of skills encoding idiomatic defaults and "think in Rust" principles for AI agents. These skills go beyond syntax to provide judgment on type-driven design, ownership strategies, and ecosystem-standard patterns.
-
-| Skill | Description |
-|-------|-------------|
-| [rust-async](./skills/rust-async/SKILL.md) | Async patterns and Tokio. Channel selection, blocking avoidance, graceful shutdown, cancellation safety, and sync↔async bridging. |
-| [rust-atomics](./skills/rust-atomics/SKILL.md) | Atomics and memory ordering defaults. Atomic-vs-lock decisions, ordering selection, compare_exchange patterns, publication edges, and unsound-concurrency traps. |
-| [rust-error-handling](./skills/rust-error-handling/SKILL.md) | Error strategy and design. Library-vs-application axis, structured errors (thiserror), ergonomic propagation (anyhow), and boundary rules. |
-| [rust-interop](./skills/rust-interop/SKILL.md) | Cross-language integration. Framework selection (PyO3, napi-rs, wasm-bindgen, cxx) and boundary ownership/panic rules. |
-| [rust-macros](./skills/rust-macros/SKILL.md) | Declarative (macro_rules!) and procedural macros. Grammar patterns, hygiene, syn/quote conventions, and expansion debugging. |
-| [rust-ownership](./skills/rust-ownership/SKILL.md) | Ownership, borrowing, and lifetimes. Decision framework for smart pointers, function signatures, and navigating borrow checker errors. |
-| [rust-performance](./skills/rust-performance/SKILL.md) | Performance optimization rulebook. Allocation reduction, data structure selection, bounds-check elimination, and profiling discipline. |
-| [rust-project-structure](./skills/rust-project-structure/SKILL.md) | Workspace and API surface design. Crate layout, feature flag unification, public API checklist, and documentation conventions. |
-| [rust-serde](./skills/rust-serde/SKILL.md) | Serialization patterns and schema design. Enum wire representations, high-leverage attributes, and adapter patterns (serde_with). |
-| [rust-testing](./skills/rust-testing/SKILL.md) | Testing ecosystem survey. Property testing (proptest), snapshot testing (insta), fixtures (rstest), mocking (mockall), and nextest runner. |
-| [rust-traits](./skills/rust-traits/SKILL.md) | Trait design and dispatch. Enforces enum → generics → trait objects hierarchy; covers object safety and standard-trait patterns. |
-| [rust-type-design](./skills/rust-type-design/SKILL.md) | Type-driven domain modeling. Patterns for newtypes, typestate, builders, phantom types, and sealing. |
-| [rust-unsafe](./skills/rust-unsafe/SKILL.md) | Soundness, safety invariants, and UB avoidance. Mandatory documentation requirements (// SAFETY:), Miri validation, and FFI boundaries. |
-| [thinking-in-rust](./skills/thinking-in-rust/SKILL.md) | **The paradigm shift skill.** 18 rules for shifting from "compiles" to "thinks in Rust" — newtypes, enums over booleans, exhaustive matching, parse-don't-validate, iterators over indexing, Option over sentinels, ownership restructuring, visibility as design. General-purpose entry point; delegates to specialized skills. |
+Consolidated Rust router skill for idiomatic Rust judgment across ownership, errors, traits, type design, async/Tokio, atomics, unsafe, macros, testing, performance, serde, interop, and project structure. Replaces the former Rust sub-skill suite with one entry point that teaches core defaults and routes to topic deep dives.
 
 ### Salsa
 

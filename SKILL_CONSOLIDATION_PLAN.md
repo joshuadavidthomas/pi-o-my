@@ -179,44 +179,22 @@ The router teaches:
 - Common mistakes table (7 entries merged from all skills)
 - Topics table at top (6 topics including git interop), reference index at bottom linking all 13 reference files
 
-## Remaining: Rust
+## Completed: Rust
 
-**Current:** 14 skills, 4,123 description chars, 3,823 SKILL.md lines total, NO overview/router
+**Before:** 14 skills (`rust-*` plus `thinking-in-rust`), 4,123 description chars, 3,823 SKILL.md lines total, no overview/router
 
-| Skill | SKILL.md Lines | Reference Files | Reference Lines |
-|-------|---------------|-----------------|-----------------|
-| rust-async | 362 | 3 | 889 |
-| rust-atomics | 247 | 4 | 217 |
-| rust-error-handling | 418 | 3 | 623 |
-| rust-idiomatic | 339 | 3 | 594 |
-| rust-interop | 112 | 6 | 582 |
-| rust-macros | 212 | 3 | 325 |
-| rust-ownership | 298 | 3 | 683 |
-| rust-performance | 263 | 2 | 234 |
-| rust-project-structure | 214 | 3 | 356 |
-| rust-serde | 259 | 2 | 308 |
-| rust-testing | 317 | 3 | 1,071 |
-| rust-traits | 326 | 4 | 1,080 |
-| rust-type-design | 284 | 3 | 986 |
-| rust-unsafe | 172 | 3 | 363 |
+**After:** 1 skill (`rust`), 14 topic files, 59 flat reference files, router SKILL.md that teaches core defaults and routes by symptom
 
-### Plan
-
-Consolidate into single `rust` skill. No existing overview — need to write one that teaches core Rust principles and provides enough substance to answer common questions.
-
-No reference filename collisions (all 45 filenames are unique), so flat references work cleanly.
-
-Estimated router SKILL.md: ~200-250 lines. Needs to cover the "which topic?" decision across 14 areas, with enough inline guidance for common questions (borrow checker basics, error handling decision tree, trait vs enum, etc.).
-
-### Proposed Structure
+### Structure
 
 ```
 rust/
-├── SKILL.md                              # ~200-250 lines — core principles, decision trees + routes
-├── async.md                              # 14 topic files (former SKILL.md bodies)
+├── SKILL.md                              # Router: Rust defaults, decision spines, common mistakes
+├── README.md                             # Source inventory, synthesis decisions, gaps
+├── async.md                              # Topic files from former SKILL.md bodies
 ├── atomics.md
 ├── error-handling.md
-├── idiomatic.md
+├── idiomatic.md                          # Former thinking-in-rust
 ├── interop.md
 ├── macros.md
 ├── ownership.md
@@ -227,13 +205,26 @@ rust/
 ├── traits.md
 ├── type-design.md
 ├── unsafe.md
-└── references/                           # 45 files, flat — all unique names
+└── references/                           # Flat — no filename collisions
     ├── blocking-and-bridging.md
     ├── channels-and-select.md
-    ├── production-patterns.md
     ├── ordering-cheatsheet.md
-    ├── ... (42 more)
+    ├── newtypes-and-domain-types.md
+    ├── parse-dont-validate.md
+    └── ... (54 more)
 ```
+
+### SKILL.md Content
+
+The router teaches:
+- Core Rust defaults: domain types, enums, exhaustive matching, borrowing, ownership, visibility, pattern matching
+- Topics table near the top for all 14 areas
+- Decision spines for ownership, errors, polymorphism, async/concurrency, macros/unsafe, and data/project boundaries
+- Common agent failure modes table (20 entries)
+- Review checklist (12 items)
+- Reference index linking every topic and reference file directly
+
+Validation: `/home/josh/.agents/skills/skill-authoring/scripts/validate.sh skills/rust` passes.
 
 ## Remaining: Salsa
 
@@ -305,7 +296,7 @@ salsa/
 | **Svelte5** | 2 skills, 365 chars | ✅ 1 skill, 449 chars | -1 entry |
 | **SvelteKit** | 5 skills, 1,100 chars | ✅ 1 skill, 561 chars | -4 entries |
 | **jj** | 6 skills, 3,427 chars | ✅ 1 skill, 599 chars | -5 entries |
-| **Rust** | 14 skills, 4,123 chars | → 1 skill, ~500 chars | -13 entries |
+| **Rust** | 14 skills, 4,123 chars | ✅ 1 skill | -13 entries |
 | **Salsa** | 13 skills, 4,169 chars | → 1 skill, ~500 chars | -12 entries |
 | **Total** | **40 skills, ~13,200 chars** | **5 skills, ~2,500 chars** | **-35 entries, ~10,700 chars saved** |
 
@@ -323,4 +314,4 @@ Estimated always-on context savings: ~2,700 tokens per conversation.
 
 5. **Subdirectories solve naming collisions** without adding link depth. Salsa's `ty-patterns.md` appearing 9 times across skills is handled by `references/cancellation/ty-patterns.md`, `references/struct-selection/ty-patterns.md`, etc. SKILL.md links to each directly.
 
-6. **Flat references when possible.** Rust has zero filename collisions across 45 reference files — flat references/ is simpler and fine.
+6. **Flat references when possible.** Rust has zero filename collisions across 59 reference files — flat references/ is simpler and fine.
