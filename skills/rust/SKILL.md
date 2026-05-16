@@ -22,9 +22,9 @@ The core failure mode: writing Rust that compiles but thinks like Python, Java, 
 
 Most of these habits come from languages without sum types, ownership, zero-cost newtypes, or exhaustive matching. Recognizing *where* a pattern comes from helps you see *why* it is wrong in Rust.
 
-This skill is the **general-purpose entry point** for Rust code review. It establishes thinking-in-Rust defaults and routes to focused deep dives when the problem is ownership, errors, traits, async, unsafe, serde, FFI, testing, performance, or project structure.
+When reviewing Rust, start with the shape of the program: what invariants are represented, who owns each value, which states are impossible, where errors cross boundaries, and whether any escape hatch is hiding a design problem.
 
-Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them.
+Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them. Load a focused topic only when the specific problem needs more detail.
 
 ## How Rust Thinks
 
