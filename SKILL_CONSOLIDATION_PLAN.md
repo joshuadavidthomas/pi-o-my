@@ -217,9 +217,10 @@ rust/
 ### SKILL.md Content
 
 The router teaches:
+- "Think in Rust" mental-model reset, matching the consolidated Svelte style
 - Core Rust defaults: domain types, enums, exhaustive matching, borrowing, ownership, visibility, pattern matching
-- Topics table near the top for all 14 areas
 - Decision spines for ownership, errors, polymorphism, async/concurrency, macros/unsafe, and data/project boundaries
+- Quick reference table for all 14 areas
 - Common agent failure modes table (20 entries)
 - Review checklist (12 items)
 - Reference index linking every topic and reference file directly

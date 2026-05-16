@@ -18,28 +18,11 @@ description: >
 
 Rust is not C with nicer syntax, Java with ownership, or TypeScript with lifetimes. The core failure mode is code that compiles but keeps another language's model: primitive strings for domain concepts, booleans for states, runtime validation that throws away proof, trait objects for closed sets, clones to quiet the compiler, and unsafe to escape design pressure.
 
-Use this skill when Rust judgment matters. Treat the rules below as strong defaults, not laws. When a topic gets deep, load the linked topic file; when a narrow pattern matters, load the direct reference.
+Use this skill when Rust judgment matters. Treat the rules below as strong defaults, not laws. Start with the mental model first; when a topic gets deep, use the quick reference and cross-references below to load the focused file.
 
-## Topics
+Rust's strength is that ownership, alternatives, and failure can be made explicit in the program shape. Write code that gives the compiler useful facts: domain types instead of primitives, enums instead of flag bundles, narrow visibility instead of accidental API, and signatures that say who owns what.
 
-| If you are working on... | Start here |
-|---|---|
-| Rust style, idioms, code review, or code translated from another language | [idiomatic.md](idiomatic.md) |
-| Borrow checker errors, lifetimes, cloning, smart pointers, `Rc`, `Arc`, `Cow` | [ownership.md](ownership.md) |
-| Error types, `thiserror`, `anyhow`, `?`, `bail!`, panics, context | [error-handling.md](error-handling.md) |
-| Enum vs trait vs generic vs `dyn Trait`, object safety, orphan rules | [traits.md](traits.md) |
-| Newtypes, typestate, builders, phantom types, parse-don't-validate | [type-design.md](type-design.md) |
-| `async`/Tokio, channels, spawning, timeouts, cancellation, blocking work | [async.md](async.md) |
-| `Atomic*`, `Ordering`, CAS loops, lock-free flags/counters | [atomics.md](atomics.md) |
-| `unsafe`, raw pointers, `MaybeUninit`, `ManuallyDrop`, `repr(C)`, Miri | [unsafe.md](unsafe.md) |
-| `macro_rules!`, proc macros, hygiene, `syn`, `quote`, `cargo expand` | [macros.md](macros.md) |
-| Unit/integration/doc tests, proptest, insta, rstest, mockall, criterion, fuzzing | [testing.md](testing.md) |
-| Profiling, allocations, collections, iterators, release builds, clippy perf | [performance.md](performance.md) |
-| Serde derives, attributes, enum wire formats, adapters, DTO boundaries | [serde.md](serde.md) |
-| FFI and host runtimes: C, C++, Python, Node, Wasm, Swift/Kotlin/Python bindings | [interop.md](interop.md) |
-| Crate layout, workspaces, public API surface, Cargo features, `Cargo.toml` | [project-structure.md](project-structure.md) |
-
-## Core Rust Defaults
+## How Rust Thinks
 
 ### Model the domain in types
 
@@ -67,7 +50,7 @@ Use this skill when Rust judgment matters. Treat the rules below as strong defau
 
 → Deep dives: [idiomatic.md](idiomatic.md), [type-design.md](type-design.md), [ownership.md](ownership.md)
 
-## Decision Spines
+## Decision Spines for Rust Design
 
 ### Ownership
 
@@ -110,6 +93,25 @@ Do not write unsafe to placate the borrow checker. Contain unsafe in the smalles
 Serde, FFI, CLI, HTTP, and database boundaries should translate into internal domain types. Use DTOs at the edge, validate/parse once, and keep rich invariants inside. Stay single-crate until you can name a real crate boundary; when you make a workspace, remember Cargo features are additive and unified across the graph.
 
 → Deep dives: [serde.md](serde.md), [interop.md](interop.md), [project-structure.md](project-structure.md), [references/features-and-unification.md](references/features-and-unification.md)
+
+## Quick Reference
+
+| Question or smell | Rust default move | Deep dive |
+|---|---|---|
+| Is this Rust code idiomatic, or translated from another language? | Move invariants into types and make control flow explicit | [idiomatic.md](idiomatic.md) |
+| Borrow checker errors, clones, lifetimes, `Rc`, `Arc`, `Cow` | Redesign ownership before adding escape hatches | [ownership.md](ownership.md) |
+| Error type, `thiserror` vs `anyhow`, `?`, context, panic | Pick library/app/boundary strategy first | [error-handling.md](error-handling.md) |
+| Enum vs generic vs `dyn Trait`, object safety, orphan rules | Closed set → enum; open known type → generic; erasure → `dyn` | [traits.md](traits.md) |
+| Newtypes, typestate, builders, phantom types | Encode the invariant in construction and transitions | [type-design.md](type-design.md) |
+| `async`/Tokio, channels, spawning, cancellation, blocking | Async waits; CPU blocks elsewhere; bound everything | [async.md](async.md) |
+| `Atomic*`, `Ordering`, CAS, lock-free state | Use atomics only with a small proof; otherwise locks/channels | [atomics.md](atomics.md) |
+| `unsafe`, raw pointers, `MaybeUninit`, `repr(C)`, Miri | Isolate unsafe and document the invariant | [unsafe.md](unsafe.md) |
+| `macro_rules!`, proc macros, hygiene, generated errors | Prefer functions/traits first; macros earn their complexity | [macros.md](macros.md) |
+| Tests, proptest, insta, rstest, mockall, criterion, fuzzing | Start with behavior tests; add tools for named gaps | [testing.md](testing.md) |
+| Profiling, allocations, collections, iterators, release builds | Measure release builds before optimizing | [performance.md](performance.md) |
+| Serde derives, attributes, enum wire formats, DTOs | Treat serialization as a boundary translation | [serde.md](serde.md) |
+| C/C++/Python/Node/Wasm/UniFFI boundary | Keep the ABI small, typed, and panic-safe | [interop.md](interop.md) |
+| Crate layout, workspaces, public API, Cargo features | Stay single-crate until the boundary has a name | [project-structure.md](project-structure.md) |
 
 ## Common Agent Failure Modes
 
