@@ -1,10 +1,10 @@
 # Project Structure, Workspaces, and API Surfaces
 
-This skill sets Rust ecosystem defaults for how to structure a project so that the codebase stays buildable, reviewable, and semver-stable as it grows. It is not about syntax; it is about boundaries: crates, modules, features, visibility, and documentation.
+Use Rust ecosystem defaults that keep the codebase buildable, reviewable, and semver-stable as it grows. This is not about syntax; it is about boundaries: crates, modules, features, visibility, and documentation.
 
 Authority: Cargo Book (workspaces, features, resolver); Edition Guide (editions); Rust API Guidelines; Effective Rust (Items 22, 23, 26, 27).
 
-## Entry Question: One Crate or Many?
+## First Question: One Crate or Many?
 
 Start with intent, not with folders.
 

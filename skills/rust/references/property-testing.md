@@ -11,7 +11,7 @@ proptest = "1"
 
 ## The `proptest!` Macro
 
-The primary entry point. Each test function declares parameters with strategies:
+Use this macro to declare property tests. Each test function declares parameters with strategies:
 
 ```rust
 use proptest::prelude::*;

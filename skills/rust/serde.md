@@ -4,7 +4,7 @@ Serde is a boundary tool. Treat serialization as schema design, not “make it c
 
 **Authority:** serde.rs documentation (attributes + enum representations + custom serialization); Rust API Guidelines (type-driven design); Effective Rust (newtype pattern to bypass orphan rule; derive macros and helper attributes).
 
-## Related skills
+## Cross-references
 
 - Use [type-design.md](type-design.md) to model the domain; serialize the model deliberately.
 - Use [error-handling.md](error-handling.md) for conversion errors at the boundary (`try_from`, custom deserializers).

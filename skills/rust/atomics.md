@@ -20,7 +20,7 @@ Before writing `Ordering` code, answer these in order:
 4. Can you explain the ordering proof in one short paragraph?
    - No → use `SeqCst`.
 
-If you need async architecture or lock-across-await guidance, route to [async.md](async.md).
+If you need async architecture or lock-across-await guidance, see [async.md](async.md).
 
 ## Ordering Rules (Practical)
 
@@ -218,25 +218,10 @@ For UB boundaries and unsafe obligations, see [references/ub-boundaries.md](refe
 6. Are we avoiding mixed atomic/non-atomic shared access?
 7. If weakening from `SeqCst`, is there a benchmark and reasoning note?
 
-## Routing to Other Skills
+## Cross-references
 
 - [async.md](async.md) — async task scheduling, lock-across-await issues, channel architecture.
 - [ownership.md](ownership.md) — `Send`/`Sync` boundaries, interior mutability tradeoffs.
 - [unsafe.md](unsafe.md) — custom primitives, raw pointers, manual `Send`/`Sync` impls.
 - [type-design.md](type-design.md) — enum-first domain modeling, newtypes, making illegal states unrepresentable.
-- **salsa-cancellation**, **salsa-lsp-integration** — Salsa host/snapshot cancellation mechanics.
-
-## References Used
-
-- `reference/rust-atomics-and-locks/README.md`
-- `reference/rust-atomics-and-locks/examples/ch2-11-increment-with-compare-exchange.rs`
-- `reference/rust-atomics-and-locks/examples/ch3-06-release-acquire.rs`
-- `reference/rust-atomics-and-locks/examples/ch3-10-seqcst.rs`
-- `reference/rust-atomics-and-locks/examples/ch3-11-fence.rs`
-- `reference/rust-atomics-and-locks/src/ch4_spin_lock/s3_guard.rs`
-- `skills/salsa-cancellation/references/salsa-framework.md`
-- `skills/salsa-lsp-integration/references/ty-patterns.md`
-- `reference/rust-book/src/ch16-04-extensible-concurrency-sync-and-send.md`
-- `reference/rust-book/src/ch15-05-interior-mutability.md`
-- `reference/rust-nomicon/src/atomics.md`
-- `reference/rust-reference/src/behavior-considered-undefined.md`
+- Salsa cancellation and LSP integration — Salsa host/snapshot cancellation mechanics.

@@ -1,22 +1,18 @@
 ---
 name: rust
 description: >
-  Mental-model reset for Rust. Use when writing or reviewing Rust code, fixing
-  compiler errors, designing APIs, modeling domain types, handling ownership,
-  lifetimes, errors, traits, async/Tokio, atomics, unsafe, macros, tests,
-  performance, serde, FFI/interop, project structure, Cargo features, or asking
-  whether Rust code is idiomatic. Handles .rs files, Cargo.toml, Cargo.lock,
-  rustc diagnostics, cargo check failures, and clippy findings. Triggers on
-  borrow checker errors, E0382,
-  E0499, E0502, E0505, E0507, E0597, E0106, E0716, thiserror vs anyhow,
-  Result/Option combinators, newtype, typestate, builder, enum vs trait,
-  dyn Trait, Send/Sync, Pin, Miri, proptest, insta, criterion, wasm-bindgen,
-  PyO3, napi-rs, cxx, UniFFI, serde attributes, and feature unification.
+  Use when writing, reviewing, debugging, or refactoring Rust code, or asking
+  whether Rust is idiomatic — improves ownership, lifetimes, domain modeling,
+  errors, traits, async/Tokio, atomics, unsafe, serde, FFI, tests, performance,
+  and Cargo structure. Handles .rs, Cargo.toml/Cargo.lock, rustc/clippy
+  diagnostics, borrow-checker errors, Result/Option, thiserror/anyhow,
+  Send/Sync, Pin, Miri, PyO3, napi-rs,
+  cxx, UniFFI, wasm-bindgen, and Cargo feature issues.
 ---
 
 # Think in Rust
 
-You already know Rust syntax. This skill changes your **defaults** — what you reach for first when modeling a domain, handling ownership, designing APIs, or crossing boundaries.
+You already know Rust syntax. Change the **defaults** you reach for first when modeling a domain, handling ownership, designing APIs, or crossing boundaries.
 
 The core failure mode: writing Rust that compiles but thinks like Python, Java, TypeScript, or C. Bare `String` for domain types. `bool` for states. Trait objects for closed sets. `Error(String)` for everything. `_ =>` in every match. Index loops. Sentinel values. Getters and setters on every field. `clone()` to quiet the compiler. `unsafe` to escape design pressure. These compile. They are wrong.
 
@@ -25,6 +21,67 @@ Most of these habits come from languages without sum types, ownership, zero-cost
 When reviewing Rust, start with the shape of the program: what invariants are represented, who owns each value, which states are impossible, where errors cross boundaries, and whether any escape hatch is hiding a design problem.
 
 Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them. Load a focused topic only when the specific problem needs more detail.
+
+## Choose the Topic
+
+| Pressure | Open |
+|---|---|
+| Borrow checker, lifetimes, cloning, smart pointers, `Rc<RefCell<_>>` | [ownership.md](ownership.md) |
+| Library/application errors, `thiserror`, `anyhow`, `?`, panic boundaries | [error-handling.md](error-handling.md) |
+| `dyn Trait`, generics, enum dispatch, newtypes, typestate, builders | [traits.md](traits.md), [type-design.md](type-design.md) |
+| Async scheduling, channels, locks, atomics, `unsafe`, `Send`/`Sync` | [async.md](async.md), [atomics.md](atomics.md), [unsafe.md](unsafe.md) |
+| Serde schemas, DTOs, FFI, host-runtime boundaries | [serde.md](serde.md), [interop.md](interop.md) |
+| Macros, tests, benchmarks, workspaces, Cargo features, public API | [macros.md](macros.md), [testing.md](testing.md), [performance.md](performance.md), [project-structure.md](project-structure.md) |
+
+## Show the Move
+
+When the shape is stringly, boolean-heavy, and error-stringy, change the type shape before polishing implementation details.
+
+```rust
+pub fn create_user(email: String, admin: bool) -> Result<User, String> {
+    if !email.contains('@') {
+        return Err("invalid email".to_owned());
+    }
+
+    let role = if admin { "admin" } else { "member" };
+    insert_user(email, role).map_err(|err| err.to_string())
+}
+```
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Email(String);
+
+#[derive(Debug)]
+pub struct EmailParseError;
+
+impl Email {
+    pub fn parse(raw: &str) -> Result<Self, EmailParseError> {
+        if raw.contains('@') {
+            Ok(Self(raw.to_owned()))
+        } else {
+            Err(EmailParseError)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Member,
+    Admin,
+}
+
+#[derive(Debug)]
+pub enum CreateUserError {
+    AlreadyExists { email: Email },
+}
+
+pub fn create_user(email: Email, role: Role) -> Result<User, CreateUserError> {
+    insert_user(&email, role).map_err(|_| CreateUserError::AlreadyExists { email })
+}
+```
+
+After parsing, invalid email is no longer a branch inside `create_user`. The role is named at the call site. The error is structured and matchable.
 
 ## How Rust Thinks
 

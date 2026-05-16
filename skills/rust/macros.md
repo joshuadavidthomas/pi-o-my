@@ -10,10 +10,10 @@ Default to **not** writing a macro.
 
 **Authority:** Rust Reference (macros, procedural macros); TLBORM (macro_rules patterns); syn/quote docs (proc-macro ecosystem); proc-macro-workshop (real-world proc macro shapes).
 
-## Related skills
+## Cross-references
 
-- Use [type-design.md](type-design.md) and [traits.md](traits.md) when you are reaching for macros to “avoid boilerplate” or to model domain structure. Prefer types, enums, and traits first.
-- Use [error-handling.md](error-handling.md) when you need a consistent error strategy in the generated runtime API (macros should still emit good compile-time diagnostics).
+- Use [type-design.md](type-design.md) and [traits.md](traits.md) when reaching for macros to “avoid boilerplate” or to model domain structure. Prefer types, enums, and traits first.
+- Use [error-handling.md](error-handling.md) when generated runtime APIs need a consistent error strategy. Macros should still emit good compile-time diagnostics.
 
 ## 1) First question: do you need a macro at all?
 

@@ -11,11 +11,11 @@ Your goal when writing unsafe code is **soundness**: no possible safe caller can
 Do not introduce unsafe unless one of these is true:
 
 - You are implementing a safe abstraction that cannot be expressed in safe Rust (custom allocators, intrusive collections, lock-free primitives, arena/slot-map internals, self-referential layout behind `Pin`, etc.).
-- You are crossing a trust boundary where the type system cannot help (kernel/syscall boundary, hardware registers, inline asm). If this is cross-language integration (C ABI, C++, Python, JS/WASM), route the boundary design to [interop.md](interop.md); this skill stays focused on unsafe Rust correctness (soundness, validity, aliasing, initialization).
+- You are crossing a trust boundary where the type system cannot help (kernel/syscall boundary, hardware registers, inline asm). If this is cross-language integration (C ABI, C++, Python, JS/WASM), handle the boundary design with [interop.md](interop.md); this topic stays focused on unsafe Rust correctness (soundness, validity, aliasing, initialization).
 - You need uninitialized memory / partial initialization for performance and can prove initialization before read (`MaybeUninit`).
 - You are forced into raw pointer manipulation by an external representation or API.
 
-If none apply, delete the unsafe and redesign using ownership/lifetimes/typestate. “I’m fighting the borrow checker” is a routing signal for [ownership.md](ownership.md), not a justification for unsafe.
+If none apply, delete the unsafe and redesign using ownership/lifetimes/typestate. “I’m fighting the borrow checker” is an [ownership.md](ownership.md) problem, not a justification for unsafe.
 
 ## 2) Contain unsafe: smallest surface area, private by default
 
@@ -107,7 +107,7 @@ Miri workflow and CI patterns: [references/miri-and-unsafe-testing.md](reference
 
 ## 8) Common mistakes (agent failure modes)
 
-- Using `unsafe` to “fix” borrow-checker friction. Redesign with ownership/lifetimes; route to [ownership.md](ownership.md).
+- Using `unsafe` to “fix” borrow-checker friction. Redesign with ownership/lifetimes; see [ownership.md](ownership.md).
 - Writing one giant `unsafe { ... }` block with no local reasoning. Split by invariant; one `// SAFETY:` per operation.
 - Creating references (`&T`/`&mut T`) from raw pointers without proving alignment, initialization, and aliasing. Prefer staying in raw-pointer land internally and exposing safe wrappers.
 - Using `mem::transmute` for “parsing” bytes or flags. Parse explicitly (match/convert) or use the dedicated `from_*_bytes` APIs.

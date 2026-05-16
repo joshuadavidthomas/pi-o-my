@@ -1,6 +1,6 @@
 # Dispatch Patterns
 
-Deep reference for choosing between static dispatch (generics), dynamic dispatch (trait objects), and enum dispatch. Loaded from [traits.md](../traits.md) when you need implementation details beyond the decision framework.
+Deep reference for choosing between static dispatch (generics), dynamic dispatch (trait objects), and enum dispatch. Use with [traits.md](../traits.md) when implementation details need more than the decision framework.
 
 ## Static Dispatch (Generics / `impl Trait`)
 

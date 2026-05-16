@@ -47,8 +47,33 @@ Covered:
 
 Gaps:
 
-- Activation behavior has structure validation only; it has not been evaluated across held-out Rust prompts.
-- Topic files are migrated bodies, not fully rewritten to remove old phrasing that may refer to standalone skills.
+- Activation examples exist, but live harness behavior has not been evaluated across an installed skill set.
+- Topic files are migrated bodies, not fully rewritten; remaining cleanup should remove provenance or standalone-skill phrasing when it does not change runtime behavior.
+
+## Activation Examples
+
+Should trigger:
+
+- "Can you review this Rust API for idiomatic design?"
+- "Fix this E0499 borrow checker error in my iterator code."
+- "Should this be an enum or `dyn Trait`?"
+- "Help me choose `thiserror` vs `anyhow` for this crate."
+- "This Tokio code holds a mutex across `.await`; how should I structure it?"
+- "My serde DTO is leaking into the domain model."
+- "Cargo enabled a feature through another dependency."
+
+Should not trigger:
+
+- "Format this README."
+- "Review this TypeScript async code."
+- "Explain what Rust is at a high level."
+- "Create a Todoist task for learning Rust."
+
+Holdout:
+
+- "Can this `Rc<RefCell<_>>` graph become arena indices instead?"
+- "This FFI callback can panic across the boundary; is that sound?"
+- "The benchmark got faster after deleting newtypes; should we keep that change?"
 
 ## Change Log
 

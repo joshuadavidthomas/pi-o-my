@@ -37,13 +37,9 @@ fn with_mut(&mut self) {
 
 The key is **ownership transfer**, not cloning.
 
-## Salsa Case Study (Reference)
+## Salsa Case Study
 
-Salsa's mutation path (`cancel_others`) sets cancellation, then waits until clone count returns to 1 before mutating.
-
-- Framework mechanics: `skills/salsa-cancellation/references/salsa-framework.md`
-  - clone-count wait loop (`while *clones != 1 { ... }`)
-- LSP/session drop-ordering implications: `skills/salsa-lsp-integration/references/ty-patterns.md`
+Salsa's mutation path sets cancellation, then waits until the clone count returns to 1 before mutating. LSP hosts that keep extra snapshots alive can accidentally extend that wait.
 
 This makes Salsa a clear demonstration of the general rule: if an API enforces exclusivity by waiting on shared-handle counts, cloning before mutation is dangerous.
 

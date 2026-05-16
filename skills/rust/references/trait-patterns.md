@@ -1,6 +1,6 @@
 # Trait Patterns
 
-Catalog of trait design patterns in idiomatic Rust. Loaded from [traits.md](../traits.md) when you need implementation details for sealed traits, extension traits, marker traits, and blanket impls.
+Catalog of trait design patterns in idiomatic Rust. Use with [traits.md](../traits.md) when implementation details matter for sealed traits, extension traits, marker traits, and blanket impls.
 
 ## Sealed Trait
 

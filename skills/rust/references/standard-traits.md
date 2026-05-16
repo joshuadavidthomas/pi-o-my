@@ -1,6 +1,6 @@
 # Standard Trait Reference
 
-Which std traits to implement, when to derive vs implement manually, and the conversion trait hierarchy. Loaded from [traits.md](../traits.md) when you need the full standard-trait picture.
+Which std traits to implement, when to derive vs implement manually, and the conversion trait hierarchy. Use with [traits.md](../traits.md) when the full standard-trait picture matters.
 
 ## The Standard Trait Checklist
 
