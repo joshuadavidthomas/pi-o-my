@@ -50,108 +50,87 @@ Rust's strength is that ownership, alternatives, and failure can be made explici
 
 → Deep dives: [idiomatic.md](idiomatic.md), [type-design.md](type-design.md), [ownership.md](ownership.md)
 
-## Decision Spines for Rust Design
+### Choose the simplest mechanism that preserves invariants
 
-### Ownership
+**19. Borrow checker errors are design feedback.** A move, overlapping borrow, temporary lifetime, or `'static` complaint is pointing at ownership shape. Redesign before adding clones, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe`. See [ownership.md](ownership.md).
 
-Borrow when the caller owns and you only read. Take `&mut T` when you mutate in place. Take `T` when you store it, transform it into another owned value, send it to another task/thread, or need to prove nobody else can use it. Return borrowed values from accessors; return owned values from constructors, parsers, and transformations.
+**20. Libraries and applications handle errors differently.** Libraries return structured errors, usually with `thiserror`. Applications use `anyhow` and add `.context()` at boundaries. Panic only for bugs and violated internal invariants. See [error-handling.md](error-handling.md).
 
-If the borrow checker fights you, first ask what it is proving: moved value, overlapping mutable borrow, reference outlives owner, temporary dropped too early, or shared state across tasks. Fix the ownership shape before adding clones, `'static`, `Rc<RefCell<_>>`, or `unsafe`.
+**21. Pick dispatch by openness.** Closed set → enum. Open set with concrete type known at the call site → generics or `impl Trait`. True type erasure → `dyn Trait`. See [traits.md](traits.md).
 
-→ Deep dives: [ownership.md](ownership.md), [references/lifetime-patterns.md](references/lifetime-patterns.md), [references/smart-pointers.md](references/smart-pointers.md)
+**22. Async is for waiting.** Never block the runtime. Use async I/O, `spawn_blocking` for short blocking calls, and Rayon or dedicated threads for CPU-bound work. Bound channels and concurrency. See [async.md](async.md).
 
-### Errors
+**23. Atomics and unsafe need proofs.** Use atomics for simple flags/counters with a clear ordering argument. Use unsafe only behind the smallest safe API, with `# Safety` docs, `// SAFETY:` comments, and Miri when validity or aliasing matters. See [atomics.md](atomics.md) and [unsafe.md](unsafe.md).
 
-Libraries return structured, public errors, usually with `thiserror`. Applications use `anyhow` at the top level and add `.context()` at abstraction boundaries. At boundaries, translate: dependency error → domain error → user/API error. Panic only for bugs, violated internal invariants, or truly unreachable code.
+**24. Boundaries translate; internals model.** Serde, FFI, CLI, HTTP, and database edges should convert DTOs into internal domain types. Stay single-crate until a crate boundary has a name; keep Cargo features additive. See [serde.md](serde.md), [interop.md](interop.md), and [project-structure.md](project-structure.md).
 
-→ Deep dives: [error-handling.md](error-handling.md), [references/designing-error-types.md](references/designing-error-types.md), [references/thiserror-patterns.md](references/thiserror-patterns.md), [references/anyhow-patterns.md](references/anyhow-patterns.md)
+## Common Mistakes (Agent Failure Modes)
 
-### Polymorphism
-
-Use an enum for a closed set. Use generics or `impl Trait` when the caller chooses the type and monomorphization is fine. Use `dyn Trait` only when you need runtime heterogeneity, plugin-like extension, or type erasure. Associated types mean one answer per implementor; generic parameters mean many possible answers.
-
-→ Deep dives: [traits.md](traits.md), [references/dispatch-patterns.md](references/dispatch-patterns.md), [references/trait-patterns.md](references/trait-patterns.md)
-
-### Async and concurrency
-
-Async is for waiting, not for CPU work. Never block the runtime; use async APIs for I/O, `spawn_blocking` for short blocking calls, Rayon or dedicated threads for CPU-bound work. Do not hold mutex guards across `.await`. Give external calls timeouts. Bound concurrency and channels.
-
-For shared state, prefer message passing or a small wrapper around `Arc<Mutex<T>>` with non-async methods. Use atomics for simple flags/counters with a clear proof; otherwise use locks or channels.
-
-→ Deep dives: [async.md](async.md), [atomics.md](atomics.md), [references/channels-and-select.md](references/channels-and-select.md), [references/ordering-cheatsheet.md](references/ordering-cheatsheet.md)
-
-### Macros and unsafe
-
-Do not write a macro until a function, trait, generic, or existing derive fails. Prefer `macro_rules!` for syntax repetition and proc macros for deriving or transforming Rust syntax. Test macro failures with `trybuild`.
-
-Do not write unsafe to placate the borrow checker. Contain unsafe in the smallest private surface, provide a safe wrapper, document `# Safety` on unsafe APIs, add `// SAFETY:` comments for blocks, and run Miri when validity or aliasing is involved.
-
-→ Deep dives: [macros.md](macros.md), [unsafe.md](unsafe.md), [references/testing-and-debugging-macros.md](references/testing-and-debugging-macros.md), [references/safety-comments-and-unsafe-contracts.md](references/safety-comments-and-unsafe-contracts.md)
-
-### Data boundaries and project shape
-
-Serde, FFI, CLI, HTTP, and database boundaries should translate into internal domain types. Use DTOs at the edge, validate/parse once, and keep rich invariants inside. Stay single-crate until you can name a real crate boundary; when you make a workspace, remember Cargo features are additive and unified across the graph.
-
-→ Deep dives: [serde.md](serde.md), [interop.md](interop.md), [project-structure.md](project-structure.md), [references/features-and-unification.md](references/features-and-unification.md)
+- **Bare `String`, `u64`, or `bool` with domain meaning** → Use a newtype or enum with named variants.
+- **`kind` plus optional fields** → Use enum variants with payloads.
+- **`_ =>` on an enum you control** → Match exhaustively so new variants break the right code.
+- **`Error(String)` or a crate-wide error blob** → Define structured errors for one unit of fallibility.
+- **`anyhow::Error` in a public library API** → Use a library error type; reserve `anyhow` for binaries/apps.
+- **Bare `?` loses context in app code** → Add `.context()` at abstraction boundaries.
+- **`clone()` or `'static` added to appease the compiler** → Revisit ownership and lifetimes.
+- **`&String`, `&Vec<T>`, or `&PathBuf` in APIs** → Accept `&str`, `&[T]`, or `&Path`.
+- **`Rc<RefCell<T>>` or `Arc<Mutex<T>>` as first resort** → Restructure ownership or use message passing.
+- **`dyn Trait` for a closed set** → Use an enum.
+- **`std::fs`, `thread::sleep`, or CPU loops in `async fn`** → Use async APIs, `spawn_blocking`, or Rayon/thread pool.
+- **Holding a lock guard across `.await`** → Narrow the lock scope or redesign shared state.
+- **`Ordering::Relaxed` for publication** → Pair Release/Acquire or use `SeqCst` until proved otherwise.
+- **`unsafe impl Send/Sync` without invariant comments** → Document and test the invariant.
+- **`mem::transmute` for bytes or flags** → Use parsing, `from_*`, `bytemuck` with proof, or explicit conversion.
+- **Proc macro for simple repetition** → Use a function, trait, derive, or `macro_rules!`.
+- **`serde_json::Value` as the internal model** → Use DTOs at the boundary and domain types inside.
+- **`#[serde(untagged)]` to make parsing work** → Prefer explicit tags; use untagged only deliberately.
+- **Benchmarking debug builds** → Measure `--release` with Criterion/profiler.
+- **Feature flags for internal workspace architecture** → Use crate boundaries/modules; features are for additive public capability.
 
 ## Quick Reference
 
-| Question or smell | Rust default move | Deep dive |
+| Code smell | Rust default move | Reference |
 |---|---|---|
-| Is this Rust code idiomatic, or translated from another language? | Move invariants into types and make control flow explicit | [idiomatic.md](idiomatic.md) |
-| Borrow checker errors, clones, lifetimes, `Rc`, `Arc`, `Cow` | Redesign ownership before adding escape hatches | [ownership.md](ownership.md) |
-| Error type, `thiserror` vs `anyhow`, `?`, context, panic | Pick library/app/boundary strategy first | [error-handling.md](error-handling.md) |
-| Enum vs generic vs `dyn Trait`, object safety, orphan rules | Closed set → enum; open known type → generic; erasure → `dyn` | [traits.md](traits.md) |
-| Newtypes, typestate, builders, phantom types | Encode the invariant in construction and transitions | [type-design.md](type-design.md) |
-| `async`/Tokio, channels, spawning, cancellation, blocking | Async waits; CPU blocks elsewhere; bound everything | [async.md](async.md) |
-| `Atomic*`, `Ordering`, CAS, lock-free state | Use atomics only with a small proof; otherwise locks/channels | [atomics.md](atomics.md) |
-| `unsafe`, raw pointers, `MaybeUninit`, `repr(C)`, Miri | Isolate unsafe and document the invariant | [unsafe.md](unsafe.md) |
-| `macro_rules!`, proc macros, hygiene, generated errors | Prefer functions/traits first; macros earn their complexity | [macros.md](macros.md) |
-| Tests, proptest, insta, rstest, mockall, criterion, fuzzing | Start with behavior tests; add tools for named gaps | [testing.md](testing.md) |
-| Profiling, allocations, collections, iterators, release builds | Measure release builds before optimizing | [performance.md](performance.md) |
-| Serde derives, attributes, enum wire formats, DTOs | Treat serialization as a boundary translation | [serde.md](serde.md) |
-| C/C++/Python/Node/Wasm/UniFFI boundary | Keep the ABI small, typed, and panic-safe | [interop.md](interop.md) |
-| Crate layout, workspaces, public API, Cargo features | Stay single-crate until the boundary has a name | [project-structure.md](project-structure.md) |
+| Rust code feels translated from another language | Move invariants into types and make control flow explicit | [idiomatic.md](idiomatic.md) |
+| Borrow checker error, defensive clone, or lifetime fight | Redesign ownership before adding escape hatches | [ownership.md](ownership.md) |
+| Error type or `thiserror` vs `anyhow` unclear | Pick library/app/boundary strategy first | [error-handling.md](error-handling.md) |
+| `Box<dyn Trait>` for flexibility | Closed set → enum; open known type → generic; erasure → `dyn` | [traits.md](traits.md) |
+| Primitive represents validated/domain data | Newtype, parser, typestate, or builder | [type-design.md](type-design.md) |
+| Blocking work or unbounded fan-out in async code | Async waits; CPU blocks elsewhere; bound everything | [async.md](async.md) |
+| Atomic ordering chosen by vibe | Use atomics only with a small proof; otherwise locks/channels | [atomics.md](atomics.md) |
+| Unsafe added to bypass compiler friction | Isolate unsafe and document the invariant | [unsafe.md](unsafe.md) |
+| Macro added before simpler tools fail | Prefer functions/traits first; macros earn their complexity | [macros.md](macros.md) |
+| Test suite needs generators, snapshots, mocks, benches, or fuzzing | Start with behavior tests; add tools for named gaps | [testing.md](testing.md) |
+| Performance change without measurement | Measure release builds before optimizing | [performance.md](performance.md) |
+| Wire format leaking into domain model | Treat serialization as boundary translation | [serde.md](serde.md) |
+| FFI/host-runtime boundary | Keep the ABI small, typed, and panic-safe | [interop.md](interop.md) |
+| Crate/workspace/API shape unclear | Stay single-crate until the boundary has a name | [project-structure.md](project-structure.md) |
 
-## Common Agent Failure Modes
+## Cross-References
 
-| Smell | Better Rust move |
-|---|---|
-| Bare `String`, `u64`, or `bool` with domain meaning | Newtype or enum with named variants |
-| `kind` plus optional fields | Enum variants with payloads |
-| `_ =>` on an enum you control | Exhaustive match |
-| `Error(String)` or crate-wide error blob | Structured error enum for one unit of fallibility |
-| `anyhow::Error` in public library API | Library error type; `anyhow` in binaries/apps |
-| Bare `?` loses context in app code | Add `.context()` at abstraction boundaries |
-| `clone()` or `'static` added to appease the compiler | Revisit ownership and lifetimes |
-| `&String`, `&Vec<T>`, `&PathBuf` in APIs | `&str`, `&[T]`, `&Path` |
-| `Rc<RefCell<T>>` or `Arc<Mutex<T>>` as first resort | Restructure ownership or use message passing |
-| `dyn Trait` for a closed set | Enum |
-| `std::fs`, `thread::sleep`, or CPU loops in `async fn` | Async APIs, `spawn_blocking`, or Rayon/thread pool |
-| Holding a lock guard across `.await` | Narrow lock scope or redesign shared state |
-| `Ordering::Relaxed` for publication | Release/Acquire pair or `SeqCst` until proved otherwise |
-| `unsafe impl Send/Sync` without invariant comments | Document and test the invariant |
-| `mem::transmute` for bytes or flags | Parser, `from_*`, `bytemuck` with proof, or explicit conversion |
-| Proc macro for simple repetition | Function, trait, derive, or `macro_rules!` |
-| `serde_json::Value` as internal model | DTO at the boundary, domain types inside |
-| `#[serde(untagged)]` to make parsing work | Prefer explicit tags; use untagged only deliberately |
-| Benchmarking debug builds | Measure `--release` with Criterion/profiler |
-| Feature flags for internal workspace architecture | Crate boundaries/modules; features only for additive public capability |
+- **[idiomatic.md](idiomatic.md)** — General Rust review: newtypes, enums, exhaustive matching, parse-don't-validate, ownership restructuring, visibility.
+- **[ownership.md](ownership.md)** — Borrow checker errors, lifetimes, function signatures, smart pointers, `Cow`, clone discipline.
+- **[error-handling.md](error-handling.md)** — `thiserror` vs `anyhow`, structured errors, context, combinators, panic boundaries.
+- **[traits.md](traits.md)** and **[type-design.md](type-design.md)** — Dispatch choices, trait design, newtypes, typestate, builders, phantom types.
+- **[async.md](async.md)**, **[atomics.md](atomics.md)**, and **[unsafe.md](unsafe.md)** — Concurrency, memory ordering, soundness, Miri, `Send`/`Sync` invariants.
+- **[macros.md](macros.md)**, **[testing.md](testing.md)**, and **[performance.md](performance.md)** — Generated code, validation strategy, profiling-first optimization.
+- **[serde.md](serde.md)**, **[interop.md](interop.md)**, and **[project-structure.md](project-structure.md)** — Boundaries, DTOs, FFI, workspaces, features, public API surface.
 
 ## Review Checklist
 
-1. Are domain invariants represented by types, not comments or repeated validation?
-2. Are public signatures using borrowed forms and ownership intentionally?
-3. Do errors carry structured facts and preserve source chains where useful?
-4. Is polymorphism the simplest correct kind: enum, generic, then `dyn`?
-5. Does async code avoid blocking, unbounded concurrency, and locks across `.await`?
-6. Are shared-state primitives chosen by semantics, not habit?
-7. Is unsafe isolated, documented, and backed by tests/Miri where relevant?
-8. Are serde/FFI/API boundaries translating into domain types?
-9. Are tests behavior-focused, deterministic, and using extra crates only for named gaps?
-10. Was performance measured in release mode before optimization?
-11. Is the public API curated with minimal visibility and stable names?
-12. Are Cargo features additive and checked with `cargo tree -e features` when surprising?
+1. **Domain primitive?** → Newtype, enum, or parser-backed type.
+2. **Boolean or `Option<bool>` state?** → Named enum variants.
+3. **Wildcard match on owned enum?** → Exhaustive match.
+4. **Validation repeated downstream?** → Parse once at the boundary.
+5. **Borrow checker appeased with `clone()`, `'static`, `Rc<RefCell<_>>`, or unsafe?** → Rework ownership first.
+6. **Public signature takes owned data but only reads?** → Borrow `&str`, `&[T]`, or `&Path`.
+7. **Library returns stringly or `anyhow` errors?** → Structured public error type.
+8. **Polymorphism unclear?** → Enum, then generics, then `dyn` only for true erasure.
+9. **Async code blocks, holds locks across `.await`, or fans out unboundedly?** → Move blocking work and bound concurrency.
+10. **Unsafe or atomics present?** → Check the written invariant/proof and run Miri when relevant.
+11. **Serde/FFI/API boundary leaks into internals?** → Translate DTOs into domain types.
+12. **Performance concern?** → Measure `--release` before cleverness.
+13. **Everything is `pub` or feature-gated internally?** → Curate the facade; keep features additive.
 
 ## Reference Index
 

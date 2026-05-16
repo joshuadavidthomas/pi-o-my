@@ -219,10 +219,11 @@ rust/
 The router teaches:
 - "Think in Rust" mental-model reset, matching the consolidated Svelte style
 - Core Rust defaults: domain types, enums, exhaustive matching, borrowing, ownership, visibility, pattern matching
-- Decision spines for ownership, errors, polymorphism, async/concurrency, macros/unsafe, and data/project boundaries
+- A third "How Rust Thinks" section for choosing simple mechanisms: ownership, errors, dispatch, async, atomics/unsafe, and boundaries
+- Common mistakes in the same bullet-list style as the Svelte skill
 - Quick reference table for all 14 areas
-- Common agent failure modes table (20 entries)
-- Review checklist (12 items)
+- Cross-references section before the review checklist
+- Review checklist (13 items)
 - Reference index linking every topic and reference file directly
 
 Validation: `/home/josh/.agents/skills/skill-authoring/scripts/validate.sh skills/rust` passes.
