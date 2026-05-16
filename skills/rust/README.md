@@ -33,7 +33,7 @@ Consolidated Rust skill for idiomatic Rust judgment across ownership, errors, tr
   - Reason: the router can teach common rules while preserving deep-dive detail one hop away.
 - Decision: flatten all reference files into `references/`.
   - Supported by: there were no filename collisions across Rust reference files after including `thinking-in-rust`.
-  - Reason: every reference remains directly linkable from `SKILL.md`.
+  - Reason: topic files can link to focused supporting material without nested reference paths.
 - Decision: do not keep a separate `idiomatic.md` topic file.
   - Reason: the former `thinking-in-rust` skill is now the router's core mental model; duplicating it as a topic file makes the agent choose between two overlapping entry points.
 
@@ -43,7 +43,7 @@ Covered:
 
 - Idiomatic Rust review and mental-model shifts.
 - Ownership, lifetimes, errors, traits, type design, async, atomics, unsafe, macros, testing, performance, serde, interop, and project structure.
-- Direct links from `SKILL.md` to all topic and reference files.
+- Direct links from `SKILL.md` to the topic files and primary smell references used by the mental model.
 
 Gaps:
 
