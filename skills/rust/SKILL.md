@@ -16,94 +16,103 @@ description: >
 
 # Think in Rust
 
-Rust is not C with nicer syntax, Java with ownership, or TypeScript with lifetimes. The core failure mode is code that compiles but keeps another language's model: primitive strings for domain concepts, booleans for states, runtime validation that throws away proof, trait objects for closed sets, clones to quiet the compiler, and unsafe to escape design pressure.
+You already know Rust syntax. This skill changes your **defaults** — what you reach for first when modeling a domain, handling ownership, designing APIs, or crossing boundaries.
 
-Use this skill when Rust judgment matters. Treat the rules below as strong defaults, not laws. Start with the mental model first; when a topic gets deep, use the quick reference and cross-references below to load the focused file.
+The core failure mode: writing Rust that compiles but thinks like Python, Java, TypeScript, or C. Bare `String` for domain types. `bool` for states. Trait objects for closed sets. `Error(String)` for everything. `_ =>` in every match. Index loops. Sentinel values. Getters and setters on every field. `clone()` to quiet the compiler. `unsafe` to escape design pressure. These compile. They are wrong.
 
-Rust's strength is that ownership, alternatives, and failure can be made explicit in the program shape. Write code that gives the compiler useful facts: domain types instead of primitives, enums instead of flag bundles, narrow visibility instead of accidental API, and signatures that say who owns what.
+Most of these habits come from languages without sum types, ownership, zero-cost newtypes, or exhaustive matching. Recognizing *where* a pattern comes from helps you see *why* it is wrong in Rust.
+
+This skill is the **general-purpose entry point** for Rust code review. It establishes thinking-in-Rust defaults and routes to focused deep dives when the problem is ownership, errors, traits, async, unsafe, serde, FFI, testing, performance, or project structure.
+
+Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them.
 
 ## How Rust Thinks
 
 ### Model the domain in types
 
-1. **Name domain values.** `UserId(String)` says more and permits less than `String`. Use newtypes for IDs, validated text, units, and security boundaries. See [references/newtypes-and-domain-types.md](references/newtypes-and-domain-types.md).
-2. **Use enums for alternatives.** A `kind` field plus optional payloads is usually an enum waiting to happen. See [references/enums-as-modeling-tool.md](references/enums-as-modeling-tool.md).
-3. **Avoid `bool` for domain state.** `is_active: bool` is fine for a predicate; `Mode::ReadOnly | Mode::ReadWrite` is better for behavior. See [references/bool-to-enum.md](references/bool-to-enum.md).
-4. **Avoid `Option<bool>`.** Three states deserve three names. See [references/option-bool-to-enum.md](references/option-bool-to-enum.md).
-5. **Use `Option` instead of sentinels.** Empty string, `0`, and `-1` are not absence. See [references/option-over-sentinels.md](references/option-over-sentinels.md).
-6. **Parse, don't validate.** Convert untrusted input once into a type that proves the invariant. See [references/parse-dont-validate.md](references/parse-dont-validate.md).
-7. **Prefer exhaustive matches.** Avoid `_ =>` on enums you own; let new variants break the right code. See [references/exhaustive-matching.md](references/exhaustive-matching.md).
-8. **Keep related data together.** Parallel vectors/maps are often one collection of structs. See [references/struct-collections.md](references/struct-collections.md).
+1. **Every string with domain meaning is a newtype.** Bare `String` erases domain knowledge. The compiler cannot distinguish an email from a username from a URL. Wrap it, validate at construction, keep the field private. See [references/newtypes-and-domain-types.md](references/newtypes-and-domain-types.md).
+2. **Every boolean parameter is a lie — use an enum.** `true` and `false` carry no meaning at the call site and cannot extend to a third state. Replace flags with named variants. Applies to struct fields too: correlated booleans are a state machine in disguise. See [references/bool-to-enum.md](references/bool-to-enum.md).
+3. **Every "I don't know" is explicit.** `Option<bool>` has three states but none of them are named. Empty collections can mean "checked and empty" or "not checked yet." Make each state a named variant. See [references/option-bool-to-enum.md](references/option-bool-to-enum.md).
+4. **Every match on your enum is exhaustive — no wildcard `_ =>` arms.** Wildcards silence the compiler when you add variants. List every variant of enums you control. `_ =>` is for foreign `#[non_exhaustive]` types and primitives. See [references/exhaustive-matching.md](references/exhaustive-matching.md).
+5. **Every error variant is a domain fact — no `Error(String)`.** String errors throw away structure. Callers cannot match, test, retry, translate, or recover. Libraries expose typed error enums; applications add context. See [error-handling.md](error-handling.md).
+6. **Parse, don't validate.** Validation checks data and throws away the proof. Parsing checks data and returns a type that proves the invariant. After parsing, do not re-check downstream. See [references/parse-dont-validate.md](references/parse-dont-validate.md).
+7. **Enums are the primary modeling tool.** Rust enums are sum types. A struct with a `kind` field plus `Option` payload fields is always an enum waiting to be written. See [references/enums-as-modeling-tool.md](references/enums-as-modeling-tool.md).
+8. **Closed sets are enums, not trait objects.** If you know all variants at compile time, use an enum: zero-cost dispatch, exhaustive matching, per-variant data. Use generics or `dyn Trait` only when the set is genuinely open. See [traits.md](traits.md).
+9. **Boundaries translate; internals model.** Serde, FFI, CLI, HTTP, and database edges should convert DTOs into domain types. Do not let wire formats become your internal model. See [serde.md](serde.md) and [interop.md](interop.md).
 
 ### Express ownership and API intent
 
-9. **Borrow by default.** Accept `&str`, `&[T]`, and `&Path` unless you need to store, mutate, or transfer ownership. See [references/borrow-by-default.md](references/borrow-by-default.md).
-10. **Function signatures are design.** A signature should reveal who owns, who borrows, and how long values remain valid. See [references/function-signatures.md](references/function-signatures.md).
-11. **Do not clone defensively.** Clone when duplication is part of the design, not to silence E0382. See [ownership.md](ownership.md).
-12. **Use interior mutability last.** Try ownership restructuring before `Rc<RefCell<T>>` or `Arc<Mutex<T>>`. See [references/ownership-before-refcell.md](references/ownership-before-refcell.md).
-13. **Transform values instead of mutating everything.** Prefer iterator adapters and constructors when they make dataflow clearer. See [references/transform-over-mutate.md](references/transform-over-mutate.md).
-14. **Iterate over collections, not indexes.** Index loops invite bounds bugs and hide intent. See [references/iterators-over-indexing.md](references/iterators-over-indexing.md).
-15. **Visibility is part of design.** Default to private or `pub(crate)`; expose a curated facade. See [references/visibility-and-modules.md](references/visibility-and-modules.md).
-16. **Do not use `impl` blocks as namespaces.** If there is no `self`, ask whether it is a free function, module function, trait method, or constructor. See [references/impl-namespace.md](references/impl-namespace.md).
-17. **Trivial getters/setters are not APIs.** Expose behavior or return borrowed views that preserve invariants. See [references/getter-setter.md](references/getter-setter.md).
-18. **Pattern matching is a design tool.** Match on typed states and variants, not decoded strings and flags. See [references/pattern-matching-tools.md](references/pattern-matching-tools.md).
+10. **Borrow by default — own when intentional.** Accept `&str`, `&[T]`, and `&Path` unless you need to store, mutate, transform, or transfer ownership. See [references/borrow-by-default.md](references/borrow-by-default.md).
+11. **Function signatures are ownership contracts.** A signature should reveal who owns, who borrows, who mutates, and how long values remain valid. If the signature lies, the borrow checker will make you pay. See [references/function-signatures.md](references/function-signatures.md).
+12. **Clone is not a design tool.** Clone for independent ownership, thread transfer, or stored copies. Do not clone because E0382 made you sad. See [ownership.md](ownership.md).
+13. **Restructure ownership before `Rc<RefCell<T>>`.** `RefCell` trades compile-time borrow checking for runtime panics. First try split borrows, read-then-write phases, arenas/indices, or explicit ownership flow. See [references/ownership-before-refcell.md](references/ownership-before-refcell.md).
+14. **Async is for waiting, not for CPU work.** Never block the runtime. Use async I/O, `spawn_blocking` for short blocking calls, and Rayon or dedicated threads for CPU-bound work. See [async.md](async.md).
+15. **Unsafe and atomics require written proofs.** Atomics need a small ordering argument. Unsafe needs the smallest safe wrapper, `# Safety` docs, `// SAFETY:` comments, and Miri when validity or aliasing matters. See [atomics.md](atomics.md) and [unsafe.md](unsafe.md).
 
-→ Deep dives: [idiomatic.md](idiomatic.md), [type-design.md](type-design.md), [ownership.md](ownership.md)
+### Express intent in APIs and control flow
 
-### Choose the simplest mechanism that preserves invariants
-
-**19. Borrow checker errors are design feedback.** A move, overlapping borrow, temporary lifetime, or `'static` complaint is pointing at ownership shape. Redesign before adding clones, `Rc<RefCell<_>>`, `Arc<Mutex<_>>`, or `unsafe`. See [ownership.md](ownership.md).
-
-**20. Libraries and applications handle errors differently.** Libraries return structured errors, usually with `thiserror`. Applications use `anyhow` and add `.context()` at boundaries. Panic only for bugs and violated internal invariants. See [error-handling.md](error-handling.md).
-
-**21. Pick dispatch by openness.** Closed set → enum. Open set with concrete type known at the call site → generics or `impl Trait`. True type erasure → `dyn Trait`. See [traits.md](traits.md).
-
-**22. Async is for waiting.** Never block the runtime. Use async I/O, `spawn_blocking` for short blocking calls, and Rayon or dedicated threads for CPU-bound work. Bound channels and concurrency. See [async.md](async.md).
-
-**23. Atomics and unsafe need proofs.** Use atomics for simple flags/counters with a clear ordering argument. Use unsafe only behind the smallest safe API, with `# Safety` docs, `// SAFETY:` comments, and Miri when validity or aliasing matters. See [atomics.md](atomics.md) and [unsafe.md](unsafe.md).
-
-**24. Boundaries translate; internals model.** Serde, FFI, CLI, HTTP, and database edges should convert DTOs into internal domain types. Stay single-crate until a crate boundary has a name; keep Cargo features additive. See [serde.md](serde.md), [interop.md](interop.md), and [project-structure.md](project-structure.md).
+16. **Iterators over index loops.** `for i in 0..v.len()` risks off-by-one errors and obscures intent. Use `.iter()`, `.enumerate()`, `.windows()`, `.zip()`, and adapters that say what you mean. See [references/iterators-over-indexing.md](references/iterators-over-indexing.md).
+17. **`Option` over sentinel values.** `-1`, `""`, `0`, and `u32::MAX` as "no value" markers are invisible to the type system. Use `Option<T>`. See [references/option-over-sentinels.md](references/option-over-sentinels.md).
+18. **One entity, one struct — not parallel collections.** Multiple maps or vectors sharing keys depend on discipline, not types. Group related data into a struct and store one collection of that entity. See [references/struct-collections.md](references/struct-collections.md).
+19. **Transform over mutate.** For configuration and construction, prefer consuming `self` chains over `&mut self` setters. Reserve `&mut self` for live objects being operated on. See [references/transform-over-mutate.md](references/transform-over-mutate.md).
+20. **Modules are namespaces, not `impl` blocks.** A unit struct with only associated functions is a Java class in disguise. Use modules for free functions; use traits when method syntax matters. See [references/impl-namespace.md](references/impl-namespace.md).
+21. **Right-size pattern matching.** `matches!()` for boolean checks. `if let` for one variant. `let ... else` for early return. `match` for real alternatives. Exhaustive `match` when adding a variant should break the build. See [references/pattern-matching-tools.md](references/pattern-matching-tools.md).
+22. **Public fields beat trivial getters.** If any value of a field's type is valid, make it `pub`. Do not write `get_x()`/`set_x()` that only forwards. When accessors protect invariants, use Rust naming: `name()`, not `get_name()`. See [references/getter-setter.md](references/getter-setter.md).
+23. **Visibility is a design tool, not cleanup.** `pub` is a semver promise. Default to private or `pub(crate)`, group modules by domain, and curate the public facade with `pub use`. See [references/visibility-and-modules.md](references/visibility-and-modules.md).
+24. **Crate boundaries must earn their names.** Stay single-crate until you can name the boundary. Cargo features are additive public capability, not an internal architecture switch. See [project-structure.md](project-structure.md).
 
 ## Common Mistakes (Agent Failure Modes)
 
-- **Bare `String`, `u64`, or `bool` with domain meaning** → Use a newtype or enum with named variants.
-- **`kind` plus optional fields** → Use enum variants with payloads.
-- **`_ =>` on an enum you control** → Match exhaustively so new variants break the right code.
+- **Public newtype fields (`pub struct Email(pub String)`)** → Make the field private; force construction through `parse`/`new` so invariants cannot be bypassed.
+- **Boolean flags leaking into APIs** → Replace with enums, even when there are only two states today.
+- **`Option<bool>` or nested `Option` state** → Name the states. Stop making callers decode truth tables.
+- **`kind` field plus `Option` payload fields** → Replace with an enum carrying per-variant data; delete the impossible states.
+- **Wildcard matches on your own enums** → List every variant; adding a variant should break the build.
+- **Validation that returns `Result<(), E>` and then forgets the proof** → Parse once at the boundary into a domain type.
 - **`Error(String)` or a crate-wide error blob** → Define structured errors for one unit of fallibility.
 - **`anyhow::Error` in a public library API** → Use a library error type; reserve `anyhow` for binaries/apps.
-- **Bare `?` loses context in app code** → Add `.context()` at abstraction boundaries.
-- **`clone()` or `'static` added to appease the compiler** → Revisit ownership and lifetimes.
+- **Bare `?` in application code** → Add `.context()` so the error says what you were doing.
+- **Taking ownership by default** → Borrow unless you store, return, transform, or transfer ownership.
+- **`clone()` as first response to E0382** → Ask who should own the data. Clone only when you can name why.
+- **`'static` added to silence a lifetime error** → Fix the relationship between lifetimes; do not make your API less useful.
 - **`&String`, `&Vec<T>`, or `&PathBuf` in APIs** → Accept `&str`, `&[T]`, or `&Path`.
 - **`Rc<RefCell<T>>` or `Arc<Mutex<T>>` as first resort** → Restructure ownership or use message passing.
-- **`dyn Trait` for a closed set** → Use an enum.
-- **`std::fs`, `thread::sleep`, or CPU loops in `async fn`** → Use async APIs, `spawn_blocking`, or Rayon/thread pool.
+- **`dyn Trait` for a closed set** → Use an enum. Interfaces are not free flexibility in Rust.
+- **Blocking or CPU work inside `async fn`** → Use async APIs, `spawn_blocking`, or Rayon/thread pool.
 - **Holding a lock guard across `.await`** → Narrow the lock scope or redesign shared state.
-- **`Ordering::Relaxed` for publication** → Pair Release/Acquire or use `SeqCst` until proved otherwise.
-- **`unsafe impl Send/Sync` without invariant comments** → Document and test the invariant.
-- **`mem::transmute` for bytes or flags** → Use parsing, `from_*`, `bytemuck` with proof, or explicit conversion.
-- **Proc macro for simple repetition** → Use a function, trait, derive, or `macro_rules!`.
+- **`Ordering::Relaxed` because it is faster** → Write the proof; otherwise use Release/Acquire or `SeqCst`.
+- **Unsafe to dodge the borrow checker** → The pattern is probably wrong. Restructure first.
 - **`serde_json::Value` as the internal model** → Use DTOs at the boundary and domain types inside.
-- **`#[serde(untagged)]` to make parsing work** → Prefer explicit tags; use untagged only deliberately.
-- **Benchmarking debug builds** → Measure `--release` with Criterion/profiler.
-- **Feature flags for internal workspace architecture** → Use crate boundaries/modules; features are for additive public capability.
+- **Benchmarking debug builds or optimizing cold code** → Measure `--release` first; keep invariants until profiling proves otherwise.
+- **Feature flags for internal workspace architecture** → Use modules/crates; features are additive public capability.
 
 ## Quick Reference
 
 | Code smell | Rust default move | Reference |
 |---|---|---|
-| Rust code feels translated from another language | Move invariants into types and make control flow explicit | [idiomatic.md](idiomatic.md) |
-| Borrow checker error, defensive clone, or lifetime fight | Redesign ownership before adding escape hatches | [ownership.md](ownership.md) |
-| Error type or `thiserror` vs `anyhow` unclear | Pick library/app/boundary strategy first | [error-handling.md](error-handling.md) |
-| `Box<dyn Trait>` for flexibility | Closed set → enum; open known type → generic; erasure → `dyn` | [traits.md](traits.md) |
-| Primitive represents validated/domain data | Newtype, parser, typestate, or builder | [type-design.md](type-design.md) |
+| Bare `String`/`u64` for domain values | Newtype with private field | [references/newtypes-and-domain-types.md](references/newtypes-and-domain-types.md) |
+| `bool` parameter or state field | Two-variant enum | [references/bool-to-enum.md](references/bool-to-enum.md) |
+| `Option<bool>` / nested `Option` | Named enum variants | [references/option-bool-to-enum.md](references/option-bool-to-enum.md) |
+| `_ =>` on your own enum | List every variant | [references/exhaustive-matching.md](references/exhaustive-matching.md) |
+| `Error(String)` in a library | Typed error enum scoped to the operation | [error-handling.md](error-handling.md) |
+| Validate then forget | Parse into a domain type | [references/parse-dont-validate.md](references/parse-dont-validate.md) |
+| `kind` field + `Option` payloads | Enum with per-variant data | [references/enums-as-modeling-tool.md](references/enums-as-modeling-tool.md) |
+| `Box<dyn Trait>` for a closed set | Enum, or generics if the set is open | [traits.md](traits.md) |
+| Function takes `Vec<T>`/`String` but only reads | Borrow `&[T]` / `&str` | [references/borrow-by-default.md](references/borrow-by-default.md) |
+| Defensive clone or lifetime fight | Redesign ownership before adding escape hatches | [ownership.md](ownership.md) |
+| `for i in 0..v.len()` | Iterator chain | [references/iterators-over-indexing.md](references/iterators-over-indexing.md) |
+| Magic number/string for absence | `Option<T>` | [references/option-over-sentinels.md](references/option-over-sentinels.md) |
+| Parallel collections with shared keys | Single collection of structs | [references/struct-collections.md](references/struct-collections.md) |
+| `&mut self` builder setters | Consuming `self` chains | [references/transform-over-mutate.md](references/transform-over-mutate.md) |
+| Unit struct with only associated functions | Module with free functions | [references/impl-namespace.md](references/impl-namespace.md) |
+| One meaningful `match` arm | `if let`, `let ... else`, or `matches!` | [references/pattern-matching-tools.md](references/pattern-matching-tools.md) |
+| Trivial `get_x()` / `set_x()` | Public field or `x()` accessor with invariant | [references/getter-setter.md](references/getter-setter.md) |
+| Everything `pub` / one giant file | Modules plus curated visibility | [references/visibility-and-modules.md](references/visibility-and-modules.md) |
 | Blocking work or unbounded fan-out in async code | Async waits; CPU blocks elsewhere; bound everything | [async.md](async.md) |
-| Atomic ordering chosen by vibe | Use atomics only with a small proof; otherwise locks/channels | [atomics.md](atomics.md) |
+| Atomic ordering chosen by vibe | Use atomics only with a written proof | [atomics.md](atomics.md) |
 | Unsafe added to bypass compiler friction | Isolate unsafe and document the invariant | [unsafe.md](unsafe.md) |
-| Macro added before simpler tools fail | Prefer functions/traits first; macros earn their complexity | [macros.md](macros.md) |
-| Test suite needs generators, snapshots, mocks, benches, or fuzzing | Start with behavior tests; add tools for named gaps | [testing.md](testing.md) |
-| Performance change without measurement | Measure release builds before optimizing | [performance.md](performance.md) |
-| Wire format leaking into domain model | Treat serialization as boundary translation | [serde.md](serde.md) |
-| FFI/host-runtime boundary | Keep the ABI small, typed, and panic-safe | [interop.md](interop.md) |
+| Wire format leaking into internals | Translate DTOs into domain types | [serde.md](serde.md) |
+| FFI or host-runtime boundary | Keep the ABI small, typed, and panic-safe | [interop.md](interop.md) |
 | Crate/workspace/API shape unclear | Stay single-crate until the boundary has a name | [project-structure.md](project-structure.md) |
 
 ## Cross-References
