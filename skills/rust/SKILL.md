@@ -1,13 +1,14 @@
 ---
 name: rust
 description: >
-  Use when writing, reviewing, debugging, or refactoring Rust code, or asking
-  whether Rust is idiomatic — improves ownership, lifetimes, domain modeling,
-  errors, traits, async/Tokio, atomics, unsafe, serde, FFI, tests, performance,
-  and Cargo structure. Handles .rs, Cargo.toml/Cargo.lock, rustc/clippy
-  diagnostics, borrow-checker errors, Result/Option, thiserror/anyhow,
-  Send/Sync, Pin, Miri, PyO3, napi-rs,
-  cxx, UniFFI, wasm-bindgen, and Cargo feature issues.
+  Mental-model reset for Rust. Use when writing or reviewing Rust code to shift
+  from "it compiles" to "thinks in Rust." Triggers on Rust code review,
+  "is this idiomatic", borrow-checker errors, API design, domain modeling,
+  ownership, lifetimes, errors, traits, async/Tokio, unsafe, serde, FFI, tests,
+  performance, Cargo structure, .rs files, Cargo.toml, rustc diagnostics, clippy
+  findings, Result/Option, thiserror vs anyhow, newtype, typestate, enum vs
+  trait, dyn Trait, Send/Sync, Pin, Miri, PyO3, napi-rs, cxx, UniFFI,
+  wasm-bindgen, serde attributes, or feature unification.
 ---
 
 # Think in Rust
@@ -20,68 +21,7 @@ Most of these habits come from languages without sum types, ownership, zero-cost
 
 When reviewing Rust, start with the shape of the program: what invariants are represented, who owns each value, which states are impossible, where errors cross boundaries, and whether any escape hatch is hiding a design problem.
 
-Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them. Load a focused topic only when the specific problem needs more detail.
-
-## Choose the Topic
-
-| Pressure | Open |
-|---|---|
-| Borrow checker, lifetimes, cloning, smart pointers, `Rc<RefCell<_>>` | [ownership.md](ownership.md) |
-| Library/application errors, `thiserror`, `anyhow`, `?`, panic boundaries | [error-handling.md](error-handling.md) |
-| `dyn Trait`, generics, enum dispatch, newtypes, typestate, builders | [traits.md](traits.md), [type-design.md](type-design.md) |
-| Async scheduling, channels, locks, atomics, `unsafe`, `Send`/`Sync` | [async.md](async.md), [atomics.md](atomics.md), [unsafe.md](unsafe.md) |
-| Serde schemas, DTOs, FFI, host-runtime boundaries | [serde.md](serde.md), [interop.md](interop.md) |
-| Macros, tests, benchmarks, workspaces, Cargo features, public API | [macros.md](macros.md), [testing.md](testing.md), [performance.md](performance.md), [project-structure.md](project-structure.md) |
-
-## Show the Move
-
-When the shape is stringly, boolean-heavy, and error-stringy, change the type shape before polishing implementation details.
-
-```rust
-pub fn create_user(email: String, admin: bool) -> Result<User, String> {
-    if !email.contains('@') {
-        return Err("invalid email".to_owned());
-    }
-
-    let role = if admin { "admin" } else { "member" };
-    insert_user(email, role).map_err(|err| err.to_string())
-}
-```
-
-```rust
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Email(String);
-
-#[derive(Debug)]
-pub struct EmailParseError;
-
-impl Email {
-    pub fn parse(raw: &str) -> Result<Self, EmailParseError> {
-        if raw.contains('@') {
-            Ok(Self(raw.to_owned()))
-        } else {
-            Err(EmailParseError)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
-    Member,
-    Admin,
-}
-
-#[derive(Debug)]
-pub enum CreateUserError {
-    AlreadyExists { email: Email },
-}
-
-pub fn create_user(email: Email, role: Role) -> Result<User, CreateUserError> {
-    insert_user(&email, role).map_err(|_| CreateUserError::AlreadyExists { email })
-}
-```
-
-After parsing, invalid email is no longer a branch inside `create_user`. The role is named at the call site. The error is structured and matchable.
+Treat these as strong defaults, not rigid laws: when unsure, choose the approach that moves invariants into types and lets the compiler enforce them.
 
 ## How Rust Thinks
 
