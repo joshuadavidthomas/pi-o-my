@@ -17,12 +17,6 @@ Rust guidance for code review, API design, and implementation work. The skill fo
 - `ownership.md`, `error-handling.md`, `traits.md`, `type-design.md`, etc. — focused topic guides for deeper decisions.
 - `references/` — narrow supporting notes linked from the main skill or topic files.
 
-## Maintainer Notes
-
-The skill is intentionally shaped like the Svelte skills: start with the mental model, name common failure modes, give strong defaults, then link to focused topic files only when more detail is needed.
-
-Keep `SKILL.md` readable as a human-facing guide. Avoid turning it into an index of every reference file. If a reference matters at runtime, link it from the rule, table row, or topic file where it changes behavior.
-
 ## Activation Examples
 
 Should trigger:
