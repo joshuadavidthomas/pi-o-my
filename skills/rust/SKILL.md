@@ -11,7 +11,7 @@ description: >
   wasm-bindgen, serde attributes, or feature unification.
 ---
 
-# Think in Rust
+# Thinking in Rust
 
 You already know Rust syntax. Change the **defaults** you reach for first when modeling a domain, handling ownership, designing APIs, or crossing boundaries.
 
@@ -83,6 +83,22 @@ Treat these as strong defaults, not rigid laws: when unsure, choose the approach
 - **Benchmarking debug builds or optimizing cold code** → Measure `--release` first; keep invariants until profiling proves otherwise.
 - **Feature flags for internal workspace architecture** → Use modules/crates; features are additive public capability.
 
+## Review Checklist
+
+1. **Domain primitive?** → Newtype, enum, or parser-backed type.
+2. **Boolean or `Option<bool>` state?** → Named enum variants.
+3. **Wildcard match on owned enum?** → Exhaustive match.
+4. **Validation repeated downstream?** → Parse once at the boundary.
+5. **Borrow checker appeased with `clone()`, `'static`, `Rc<RefCell<_>>`, or unsafe?** → Rework ownership first.
+6. **Public signature takes owned data but only reads?** → Borrow `&str`, `&[T]`, or `&Path`.
+7. **Library returns stringly or `anyhow` errors?** → Structured public error type.
+8. **Polymorphism unclear?** → Enum, then generics, then `dyn` only for true erasure.
+9. **Async code blocks, holds locks across `.await`, or fans out unboundedly?** → Move blocking work and bound concurrency.
+10. **Unsafe or atomics present?** → Check the written invariant/proof and run Miri when relevant.
+11. **Serde/FFI/API boundary leaks into internals?** → Translate DTOs into domain types.
+12. **Performance concern?** → Measure `--release` before cleverness.
+13. **Everything is `pub` or feature-gated internally?** → Curate the facade; keep features additive.
+
 ## Quick Reference
 
 | Code smell | Rust default move | Reference |
@@ -120,19 +136,3 @@ Treat these as strong defaults, not rigid laws: when unsure, choose the approach
 - **[async.md](async.md)**, **[atomics.md](atomics.md)**, and **[unsafe.md](unsafe.md)** — Concurrency, memory ordering, soundness, Miri, `Send`/`Sync` invariants.
 - **[macros.md](macros.md)**, **[testing.md](testing.md)**, and **[performance.md](performance.md)** — Generated code, validation strategy, profiling-first optimization.
 - **[serde.md](serde.md)**, **[interop.md](interop.md)**, and **[project-structure.md](project-structure.md)** — Boundaries, DTOs, FFI, workspaces, features, public API surface.
-
-## Review Checklist
-
-1. **Domain primitive?** → Newtype, enum, or parser-backed type.
-2. **Boolean or `Option<bool>` state?** → Named enum variants.
-3. **Wildcard match on owned enum?** → Exhaustive match.
-4. **Validation repeated downstream?** → Parse once at the boundary.
-5. **Borrow checker appeased with `clone()`, `'static`, `Rc<RefCell<_>>`, or unsafe?** → Rework ownership first.
-6. **Public signature takes owned data but only reads?** → Borrow `&str`, `&[T]`, or `&Path`.
-7. **Library returns stringly or `anyhow` errors?** → Structured public error type.
-8. **Polymorphism unclear?** → Enum, then generics, then `dyn` only for true erasure.
-9. **Async code blocks, holds locks across `.await`, or fans out unboundedly?** → Move blocking work and bound concurrency.
-10. **Unsafe or atomics present?** → Check the written invariant/proof and run Miri when relevant.
-11. **Serde/FFI/API boundary leaks into internals?** → Translate DTOs into domain types.
-12. **Performance concern?** → Measure `--release` before cleverness.
-13. **Everything is `pub` or feature-gated internally?** → Curate the facade; keep features additive.
