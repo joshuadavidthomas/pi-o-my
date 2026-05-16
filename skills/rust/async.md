@@ -341,7 +341,7 @@ For graceful shutdown (`CancellationToken`, `TaskTracker`), retry with backoff, 
 - [ownership.md](ownership.md) — `'static` bounds on spawned futures, `Arc`/`Rc` choice, `Send`/`Sync`
 - [traits.md](traits.md) — `Send`, `Sync`, `Future` trait, object safety with async
 - [error-handling.md](error-handling.md) — `anyhow` in async contexts, `?` in async functions, `JoinError` handling
-- [idiomatic.md](idiomatic.md) — Enum-based message types for actor channels, newtype wrappers for state
+- [type-design.md](type-design.md) — Enum-based message types for actor channels, newtype wrappers for state
 
 ## Review Checklist
 

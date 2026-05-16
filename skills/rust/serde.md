@@ -6,7 +6,7 @@ Serde is a boundary tool. Treat serialization as schema design, not “make it c
 
 ## Related skills
 
-- Use [idiomatic.md](idiomatic.md) and [type-design.md](type-design.md) to model the domain; serialize the model deliberately.
+- Use [type-design.md](type-design.md) to model the domain; serialize the model deliberately.
 - Use [error-handling.md](error-handling.md) for conversion errors at the boundary (`try_from`, custom deserializers).
 - Use [ownership.md](ownership.md) when doing zero-copy deserialization (`'de`, `Cow`, borrowing).
 
@@ -81,7 +81,7 @@ impl From<UserDto> for User {
 - `Value` is acceptable as an **ingress/egress shim** at the boundary.
 - Convert into typed structs/enums immediately and keep type-driven invariants inside.
 
-This is [idiomatic.md](idiomatic.md) (“parse, don’t validate”) applied to serialization.
+This is [type-design.md](type-design.md) (“parse, don’t validate”) applied to serialization.
 
 ## 4) Attribute defaults (the 80/20 set)
 

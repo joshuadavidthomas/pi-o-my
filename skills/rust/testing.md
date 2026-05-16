@@ -293,7 +293,7 @@ cargo test --doc
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — structuring test data with newtypes/enums; exhaustive matching of error variants
+- [type-design.md](type-design.md) — structuring test data with newtypes/enums; exhaustive matching of error variants
 - [error-handling.md](error-handling.md) — testing error variants and error chains; `Result`-returning tests
 - [type-design.md](type-design.md) — property testing invariants for domain types
 - [async.md](async.md) — `#[tokio::test]`, async timeouts, cancellation-safe tests

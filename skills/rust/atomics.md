@@ -223,7 +223,7 @@ For UB boundaries and unsafe obligations, see [references/ub-boundaries.md](refe
 - [async.md](async.md) — async task scheduling, lock-across-await issues, channel architecture.
 - [ownership.md](ownership.md) — `Send`/`Sync` boundaries, interior mutability tradeoffs.
 - [unsafe.md](unsafe.md) — custom primitives, raw pointers, manual `Send`/`Sync` impls.
-- [idiomatic.md](idiomatic.md) — enum-first domain modeling, newtypes, making illegal states unrepresentable.
+- [type-design.md](type-design.md) — enum-first domain modeling, newtypes, making illegal states unrepresentable.
 - **salsa-cancellation**, **salsa-lsp-integration** — Salsa host/snapshot cancellation mechanics.
 
 ## References Used

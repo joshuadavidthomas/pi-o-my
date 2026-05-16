@@ -191,7 +191,7 @@ pub use crate::foo::Foo;
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — model boundaries with types; avoid “configuration by bool/string”; parse at the boundary
+- [type-design.md](type-design.md) — model boundaries with types; avoid “configuration by bool/string”; parse at the boundary
 - [error-handling.md](error-handling.md) — library vs application error type choices affect crate layout (thiserror vs anyhow)
 - [serde.md](serde.md) (when added) — keep serde behind additive features without breaking your public API
 

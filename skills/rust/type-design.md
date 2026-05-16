@@ -2,9 +2,7 @@
 
 Use Rust’s type system to **encode domain facts** so the compiler rejects invalid states.
 
-This skill complements [idiomatic.md](idiomatic.md):
-- [idiomatic.md](idiomatic.md): the default rules (enum-first, newtype-heavy, no `_ =>`, parse-don’t-validate).
-- [type-design.md](type-design.md): the implementation patterns that make those rules cheap to apply.
+This topic is the implementation toolbox for Rust's modeling defaults: enum-first, newtype-heavy, no wildcard matches on owned enums, and parse-don’t-validate.
 
 ## Rules of thumb (defaults)
 
@@ -249,7 +247,7 @@ impl ConnectionState for Disconnected {
 - Same representation, different meaning → **Phantom type**.
 - Trait must not be externally implemented → **Sealed trait**.
 
-If you have a struct with a `kind` field plus variant-only `Option` fields: delete it and model as an enum (per [idiomatic.md](idiomatic.md)).
+If you have a struct with a `kind` field plus variant-only `Option` fields: delete it and model as an enum.
 
 ## Common mistakes (agent failure modes)
 
@@ -262,7 +260,7 @@ If you have a struct with a `kind` field plus variant-only `Option` fields: dele
 
 ## Cross-references
 
-- [idiomatic.md](idiomatic.md) — the modeling defaults (enum-first, newtype-heavy)
+- [references/enums-as-modeling-tool.md](references/enums-as-modeling-tool.md) — enum-first modeling details
 - [ownership.md](ownership.md) — consuming `self`, borrowing in builder APIs
 - [traits.md](traits.md) — trait design, object safety, and sealing patterns
 - [error-handling.md](error-handling.md) — error types for fallible construction and parsing

@@ -8,7 +8,7 @@ The Rust default order:
 2. **Open set, concrete type known at the call site** → use generics / `impl Trait`.
 3. **True type erasure** (plugins, heterogeneous collections) → use `dyn Trait`.
 
-This is the same ecosystem guidance as [idiomatic.md](idiomatic.md) Rules 7–8, applied to trait design.
+This is the same enum-first modeling guidance applied to trait design.
 
 ## The Central Decision: How to Dispatch
 
@@ -160,7 +160,7 @@ impl Display for PrettyVec {
 }
 ```
 
-**Authority:** Rust Reference (coherence / orphan rules). [idiomatic.md](idiomatic.md) Rule 1.
+**Authority:** Rust Reference (coherence / orphan rules). Newtypes are the standard orphan-rule escape hatch.
 
 ### Rule 4: Use supertraits only when the *trait* requires them
 
@@ -301,7 +301,7 @@ For the broader catalog (conditional impls, newtype delegation, closures vs trai
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — Enum-first modeling and “dyn only for open sets” defaults
+- [references/enums-as-modeling-tool.md](references/enums-as-modeling-tool.md) — Enum-first modeling defaults
 - [type-design.md](type-design.md) — Newtype boundaries, typestate, invariants
 - [ownership.md](ownership.md) — Trait object lifetimes, `Send`/`Sync` bounds, smart pointers
 - [error-handling.md](error-handling.md) — `Error` as a trait, `From` conversions, `Box<dyn Error>`

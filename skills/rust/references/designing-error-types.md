@@ -165,7 +165,7 @@ The key insight for Rust practitioners: the boundary between the two isn't alway
 
 [Blog post](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 
-The theoretical foundation for the mmapped.blog "lift input validation" rule (the `EmailAddress` newtype example). Covered in detail in the [type-design.md](../type-design.md) and [idiomatic.md](../idiomatic.md) skills.
+The theoretical foundation for the mmapped.blog "lift input validation" rule (the `EmailAddress` newtype example). Covered in detail in [type-design.md](../type-design.md).
 
 ### The Trouble with Typed Errors (Matt Parsons, 2018)
 
@@ -177,5 +177,5 @@ Parsons' ideal: **every error type should have a single constructor** (no sum ty
 
 **Relevance to Rust:** Rust doesn't have the type-level machinery for Parsons' `plucky` approach, but the diagnosis is directly applicable:
 - A crate-wide `Error` enum with 15 variants is the exact anti-pattern Parsons describes. Each function claims it can produce all 15 errors — most are lies.
-- The Rust-practical solution (from mmapped.blog and the main SKILL.md Rule 1): scope error types to the function or tightly-related group. `ConnectError` for connection functions, `QueryError` for query functions. Each type is honest about its failure modes.
+- The Rust-practical solution (from mmapped.blog and [error-handling.md](../error-handling.md)): scope error types to the function or tightly-related group. `ConnectError` for connection functions, `QueryError` for query functions. Each type is honest about its failure modes.
 - The trade-off Rust accepts: manual composition at boundaries (converting `ConnectError` into a broader `ServiceError` via `From` or `map_err`). This is more boilerplate than Parsons' Haskell solution, but it's explicit and greppable.

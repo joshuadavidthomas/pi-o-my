@@ -183,7 +183,7 @@ The router teaches:
 
 **Before:** 14 skills (`rust-*` plus `thinking-in-rust`), 4,123 description chars, 3,823 SKILL.md lines total, no overview/router
 
-**After:** 1 skill (`rust`), 14 topic files, 59 flat reference files, router SKILL.md that teaches core defaults and routes by symptom
+**After:** 1 skill (`rust`), 13 topic files, 59 flat reference files, router SKILL.md that teaches core defaults and routes by symptom
 
 ### Structure
 
@@ -194,7 +194,6 @@ rust/
 ├── async.md                              # Topic files from former SKILL.md bodies
 ├── atomics.md
 ├── error-handling.md
-├── idiomatic.md                          # Former thinking-in-rust
 ├── interop.md
 ├── macros.md
 ├── ownership.md
@@ -221,7 +220,7 @@ The router teaches:
 - Core Rust defaults: domain types, enums, exhaustive matching, borrowing, ownership, visibility, pattern matching
 - A third "How Rust Thinks" section for choosing simple mechanisms: ownership, errors, dispatch, async, atomics/unsafe, and boundaries
 - Common mistakes in the same bullet-list style as the Svelte skill
-- Quick reference table for all 14 areas
+- Quick reference table for all 13 topic areas plus core idiom references
 - Cross-references section before the review checklist
 - Review checklist (13 items)
 - Reference index linking every topic and reference file directly

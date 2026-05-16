@@ -273,7 +273,7 @@ fn process(data: &Data) {
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — Rule 9 (borrow by default), the foundational defaults
+- [references/borrow-by-default.md](references/borrow-by-default.md) — borrow-by-default API guidance
 - [type-design.md](type-design.md) — Typestate transitions consume `self`, builder ownership patterns
 - [error-handling.md](error-handling.md) — Owned vs borrowed data in error types
 - [traits.md](traits.md) — Trait object lifetimes (`Box<dyn Trait + 'a>`), Send/Sync bounds

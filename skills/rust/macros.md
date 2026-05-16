@@ -12,7 +12,7 @@ Default to **not** writing a macro.
 
 ## Related skills
 
-- Use [idiomatic.md](idiomatic.md) and [type-design.md](type-design.md) when you are reaching for macros to “avoid boilerplate” or to model domain structure. Prefer types, enums, and traits first.
+- Use [type-design.md](type-design.md) and [traits.md](traits.md) when you are reaching for macros to “avoid boilerplate” or to model domain structure. Prefer types, enums, and traits first.
 - Use [error-handling.md](error-handling.md) when you need a consistent error strategy in the generated runtime API (macros should still emit good compile-time diagnostics).
 
 ## 1) First question: do you need a macro at all?

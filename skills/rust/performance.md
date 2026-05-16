@@ -235,13 +235,13 @@ Inline hints can help or hurt depending on code size and call frequency. Apply o
 
 - “Optimized” code measured in dev builds → always re-measure in `--release`.
 - Removing allocations in cold code → ignore unless profiling shows it matters.
-- Trading away type-level invariants (e.g., replacing domain newtypes with `String`/`u64`) for unmeasured micro-wins → don’t; keep types and optimize hot paths elsewhere (see [idiomatic.md](idiomatic.md)).
+- Trading away type-level invariants (e.g., replacing domain newtypes with `String`/`u64`) for unmeasured micro-wins → don’t; keep types and optimize hot paths elsewhere (see [type-design.md](type-design.md)).
 - Premature `unsafe` for bounds checks → don’t. Use safe restructuring first; unsafe requires a written invariant and a measured win.
 - Changing three things at once → make one change, measure, then proceed.
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — Do not sacrifice domain modeling and invariants for unmeasured micro-optimizations.
+- [type-design.md](type-design.md) — Do not sacrifice domain modeling and invariants for unmeasured micro-optimizations.
 - [ownership.md](ownership.md) — Eliminating clones by borrowing; API signatures that avoid copies.
 - [async.md](async.md) — Performance in async code (don’t block, don’t hold locks across `.await`, backpressure).
 - [traits.md](traits.md) — Static vs dynamic dispatch tradeoffs (monomorphization vs vtables).

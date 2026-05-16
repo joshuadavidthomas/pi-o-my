@@ -6,7 +6,7 @@ Consolidated Rust skill for idiomatic Rust judgment across ownership, errors, tr
 
 | Source | Trust | Contribution | Constraints |
 |---|---|---|---|
-| Former `thinking-in-rust` skill | High | Core mental model and idiomatic defaults | Migrated into `idiomatic.md` and router foundations |
+| Former `thinking-in-rust` skill | High | Core mental model and idiomatic defaults | Promoted into `SKILL.md`; detailed smell references live in `references/` |
 | Former `rust-ownership` skill | High | Borrowing, lifetimes, smart pointers, function signatures | Migrated into `ownership.md` plus references |
 | Former `rust-error-handling` skill | High | Library vs application errors, thiserror/anyhow, combinators | Migrated into `error-handling.md` plus references |
 | Former `rust-traits` skill | High | Dispatch choices, object safety, standard traits, trait patterns | Migrated into `traits.md` plus references |
@@ -34,8 +34,8 @@ Consolidated Rust skill for idiomatic Rust judgment across ownership, errors, tr
 - Decision: flatten all reference files into `references/`.
   - Supported by: there were no filename collisions across Rust reference files after including `thinking-in-rust`.
   - Reason: every reference remains directly linkable from `SKILL.md`.
-- Decision: use `idiomatic.md` for the former `thinking-in-rust` skill.
-  - Reason: `rust` is now the entry point; `idiomatic.md` better names the topic role.
+- Decision: do not keep a separate `idiomatic.md` topic file.
+  - Reason: the former `thinking-in-rust` skill is now the router's core mental model; duplicating it as a topic file makes the agent choose between two overlapping entry points.
 
 ## Coverage and Gaps
 

@@ -79,7 +79,7 @@ InvalidConfig(String),
 InvalidConfigValue { key: String, value: String },
 ```
 
-**Authority:** std: `io::Error` has `ErrorKind` + optional inner error. `serde_json::Error` has `line()`, `column()`, `classify()`. [idiomatic.md](idiomatic.md) Rule 5.
+**Authority:** std: `io::Error` has `ErrorKind` + optional inner error. `serde_json::Error` has `line()`, `column()`, `classify()`.
 
 ### Rule 3: Preserve the error chain with `#[source]`
 
@@ -146,7 +146,7 @@ pub enum ParseError {
 }
 ```
 
-Callers will need a `_ =>` arm — but this is the correct exception to [idiomatic.md](idiomatic.md) Rule 4 (foreign `#[non_exhaustive]` types).
+Callers will need a `_ =>` arm — this is the correct exception for foreign `#[non_exhaustive]` types.
 
 **Authority:** Rust Reference: `#[non_exhaustive]` + Rust semver expectations for public enums.
 
@@ -455,7 +455,7 @@ impl ApiError {
 
 ## Common Mistakes (Agent Failure Modes)
 
-- **`Error(String)` in a library** → Callers can't match. Define structured variants. Use [idiomatic.md](idiomatic.md) Rule 5.
+- **`Error(String)` in a library** → Callers can't match. Define structured variants.
 - **One giant error enum for the whole crate** → Scope errors to operations. Callers handle only what a function can actually produce.
 - **`#[from]` on every variant** → Silent conversions lose context. Use `#[from]` only when conversion is unambiguous.
 - **`anyhow` in a library's public API** → Callers lose the ability to match. Use `thiserror` for public errors; `anyhow` is for your binary.
@@ -466,7 +466,7 @@ impl ApiError {
 
 ## Cross-References
 
-- [idiomatic.md](idiomatic.md) — Rule 5 (error variants as domain facts), the foundational defaults
+- [type-design.md](type-design.md) — domain modeling and parse-don't-validate defaults
 - [type-design.md](type-design.md) — Newtype errors, parse-don't-validate at boundaries
 - [ownership.md](ownership.md) — Owned vs borrowed data in error types, `Send + Sync` bounds
 - [traits.md](traits.md) — `Error` trait, `From` implementations, trait objects for error erasure

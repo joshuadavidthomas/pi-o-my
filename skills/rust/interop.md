@@ -30,7 +30,7 @@ Do this up front, in writing:
 
 Then implement the boundary as a thin translation layer.
 
-This is the same principle as [idiomatic.md](idiomatic.md) (“parse, don’t validate”) applied to foreign inputs: convert at the edge, operate on typed Rust inside.
+This is the same principle as [type-design.md](type-design.md) (“parse, don’t validate”) applied to foreign inputs: convert at the edge, operate on typed Rust inside.
 
 ### 2) Keep the ABI surface small and boring
 

@@ -117,7 +117,6 @@ Treat these as strong defaults, not rigid laws: when unsure, choose the approach
 
 ## Cross-References
 
-- **[idiomatic.md](idiomatic.md)** — General Rust review: newtypes, enums, exhaustive matching, parse-don't-validate, ownership restructuring, visibility.
 - **[ownership.md](ownership.md)** — Borrow checker errors, lifetimes, function signatures, smart pointers, `Cow`, clone discipline.
 - **[error-handling.md](error-handling.md)** — `thiserror` vs `anyhow`, structured errors, context, combinators, panic boundaries.
 - **[traits.md](traits.md)** and **[type-design.md](type-design.md)** — Dispatch choices, trait design, newtypes, typestate, builders, phantom types.
@@ -143,7 +142,7 @@ Treat these as strong defaults, not rigid laws: when unsure, choose the approach
 
 ## Reference Index
 
-**Topic files:** [idiomatic.md](idiomatic.md), [ownership.md](ownership.md), [error-handling.md](error-handling.md), [traits.md](traits.md), [type-design.md](type-design.md), [async.md](async.md), [atomics.md](atomics.md), [unsafe.md](unsafe.md), [macros.md](macros.md), [testing.md](testing.md), [performance.md](performance.md), [serde.md](serde.md), [interop.md](interop.md), [project-structure.md](project-structure.md)
+**Topic files:** [ownership.md](ownership.md), [error-handling.md](error-handling.md), [traits.md](traits.md), [type-design.md](type-design.md), [async.md](async.md), [atomics.md](atomics.md), [unsafe.md](unsafe.md), [macros.md](macros.md), [testing.md](testing.md), [performance.md](performance.md), [serde.md](serde.md), [interop.md](interop.md), [project-structure.md](project-structure.md)
 
 **Idiomatic Rust:** [bool-to-enum.md](references/bool-to-enum.md), [borrow-by-default.md](references/borrow-by-default.md), [enums-as-modeling-tool.md](references/enums-as-modeling-tool.md), [exhaustive-matching.md](references/exhaustive-matching.md), [getter-setter.md](references/getter-setter.md), [impl-namespace.md](references/impl-namespace.md), [iterators-over-indexing.md](references/iterators-over-indexing.md), [newtypes-and-domain-types.md](references/newtypes-and-domain-types.md), [option-bool-to-enum.md](references/option-bool-to-enum.md), [option-over-sentinels.md](references/option-over-sentinels.md), [ownership-before-refcell.md](references/ownership-before-refcell.md), [parse-dont-validate.md](references/parse-dont-validate.md), [pattern-matching-tools.md](references/pattern-matching-tools.md), [struct-collections.md](references/struct-collections.md), [transform-over-mutate.md](references/transform-over-mutate.md), [visibility-and-modules.md](references/visibility-and-modules.md)
 
