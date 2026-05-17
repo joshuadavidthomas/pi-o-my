@@ -178,10 +178,6 @@ Wraps the [btca (Better Context App)](https://btca.dev) CLI tool. Covers install
 
 Methodical approach to researching unfamiliar codebases using scout subagents.
 
-### [shadcn-svelte-forms](./skills/shadcn-svelte-forms/SKILL.md)
-
-Patterns for building forms with shadcn-svelte and bits-ui. Covers Field.* component patterns, checkbox groups, radio groups, and form validation display.
-
 ### [tmux](./skills/tmux/SKILL.md)
 
 Remote control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
