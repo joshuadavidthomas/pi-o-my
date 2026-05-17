@@ -1,6 +1,15 @@
 ---
-name: salsa-overview
-description: "Start here for Salsa — the incremental computation framework for Rust. Use when asking what Salsa is, how it works, getting started, or seeking guidance on which specialized Salsa skill to load. Triggers on: #[salsa::db], #[salsa::input], #[salsa::tracked], #[salsa::interned], #[salsa::accumulator], salsa::Storage, memoization, incremental computation, dependency tracking, revisions, backdating, and the red-green algorithm."
+name: salsa
+description: >
+  Mental-model reset for Salsa, the incremental computation framework for Rust.
+  Use when building or reviewing Salsa databases, tracked functions, input/
+  tracked/interned structs, query pipelines, accumulators, cancellation,
+  durability, LSP integration, memory management, cycles, or production Salsa
+  architecture. Triggers on #[salsa::db], #[salsa::input], #[salsa::tracked],
+  #[salsa::interned], #[salsa::accumulator], salsa::Storage, memoization,
+  revisions, backdating, red-green algorithm, WillExecute,
+  DidValidateMemoizedValue, Cancelled, returns(ref), no_eq, lru, cycle_fn,
+  cycle_result, durability, or salsa::Event.
 ---
 
 # Salsa: Incremental Computation for Rust
@@ -60,7 +69,7 @@ pub struct Database {
 impl salsa::Database for Database {}
 ```
 
-→ Patterns: load **salsa-database-architecture** for layered traits, test vs production, and side tables.
+→ Deep dive: [database-architecture.md](database-architecture.md) for layered traits, test vs production, and side tables.
 
 ### Inputs — The Roots
 
@@ -88,7 +97,7 @@ fn parse(db: &dyn Db, file: SourceFile) -> Ast<'_> {
 }
 ```
 
-→ Patterns: load **salsa-query-pipeline** for return modes, LRU, `no_eq`, `specify`, and granularity.
+→ Deep dive: [query-pipeline.md](query-pipeline.md) for return modes, LRU, `no_eq`, `specify`, and granularity.
 
 ### Tracked Structs — Intermediate Entities
 
@@ -117,7 +126,7 @@ pub struct Word<'db> {
 }
 ```
 
-→ Patterns: load **salsa-struct-selection** for the decision framework (e.g., ty's "no tracked structs" vs rust-analyzer's "intern every definition").
+→ Deep dive: [struct-selection.md](struct-selection.md) for the decision framework, including ty's "no tracked structs" and rust-analyzer's "intern every definition" styles.
 
 ### Accumulators — Side-Channel Output
 
@@ -131,7 +140,7 @@ pub struct Diagnostics(Diagnostic);
 Diagnostics::push(db, Diagnostic { message: "type error".into(), .. });
 ```
 
-→ Patterns: load **salsa-accumulators**.
+→ Deep dive: [accumulators.md](accumulators.md).
 
 ### Revisions and the Red-Green Algorithm
 
@@ -141,26 +150,26 @@ Every input mutation increments a **revision counter**. When you call a tracked 
 
 Inputs can be tagged with `LOW`, `MEDIUM`, or `HIGH` durability. When only `LOW`-durability inputs change, Salsa skips validating stable subgraphs.
 
-→ Patterns: load **salsa-durability**.
+→ Deep dive: [durability.md](durability.md).
 
-## Example & Routing
+## Where to Go Deeper
 
-- For a complete walkthrough of a calculator project: see [references/minimal-example.md](references/minimal-example.md).
+- For a complete walkthrough of a calculator project: see [references/overview/minimal-example.md](references/overview/minimal-example.md).
 
-| I want to... | Load this skill |
-|---------------|----------------|
-| Choose between input, tracked, and interned | **salsa-struct-selection** |
-| Design my tracked functions and query graph | **salsa-query-pipeline** |
-| Structure my database with layered traits | **salsa-database-architecture** |
-| Handle recursive/cyclic queries | **salsa-cycle-handling** |
-| Support cancellation in an LSP or CLI | **salsa-cancellation** |
-| Optimize with durability levels | **salsa-durability** |
-| Test that incremental reuse actually works | **salsa-incremental-testing** |
-| Control memory with LRU and `no_eq` | **salsa-memory-management** |
-| Build an LSP server backed by Salsa | **salsa-lsp-integration** |
-| Report diagnostics via accumulators | **salsa-accumulators** |
-| Move from prototype to production scale | **salsa-production-patterns** |
-| Access low-level plumbing and "Level 4" patterns | **salsa-advanced-plumbing** |
+| I want to... | Read |
+|---------------|------|
+| Choose between input, tracked, and interned | [struct-selection.md](struct-selection.md) |
+| Design my tracked functions and query graph | [query-pipeline.md](query-pipeline.md) |
+| Structure my database with layered traits | [database-architecture.md](database-architecture.md) |
+| Handle recursive/cyclic queries | [cycle-handling.md](cycle-handling.md) |
+| Support cancellation in an LSP or CLI | [cancellation.md](cancellation.md) |
+| Optimize with durability levels | [durability.md](durability.md) |
+| Test that incremental reuse actually works | [incremental-testing.md](incremental-testing.md) |
+| Control memory with LRU and `no_eq` | [memory-management.md](memory-management.md) |
+| Build an LSP server backed by Salsa | [lsp-integration.md](lsp-integration.md) |
+| Report diagnostics via accumulators | [accumulators.md](accumulators.md) |
+| Move from prototype to production scale | [production-patterns.md](production-patterns.md) |
+| Access low-level plumbing and "Level 4" patterns | [advanced-plumbing.md](advanced-plumbing.md) |
 
 ## Key Vocabulary
 

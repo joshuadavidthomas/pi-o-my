@@ -1,7 +1,3 @@
----
-name: salsa-cycle-handling
-description: Use when dealing with recursive or cyclic queries in Salsa — handles fixed-point iteration (cycle_fn, cycle_initial), fallback values (cycle_result), and "cycle detected" panics. Essential for type inference, class hierarchies, and recursive analysis.
----
 
 # Dealing with Cycles in Salsa
 
@@ -30,8 +26,8 @@ fn my_cycle_fn(db: &dyn Db, cycle: &salsa::Cycle, prev: &MyValue, curr: MyValue,
 }
 ```
 
-- **Mechanism:** See [references/theory.md](references/theory.md)
-- **Examples:** Shortest path, ty's divergent sentinel, Cairo's import resolution in [references/patterns.md](references/patterns.md)
+- **Mechanism:** See [references/theory.md](references/cycle-handling/theory.md)
+- **Examples:** Shortest path, ty's divergent sentinel, Cairo's import resolution in [references/patterns.md](references/cycle-handling/patterns.md)
 
 ## Strategy 2: Fallback Values
 
@@ -47,7 +43,7 @@ fn my_fallback(_db: &dyn Db, _id: salsa::Id, _key: MyKey) -> MyValue {
 ```
 
 - **Critical Difference:** In `cycle_result`, **all cycle participants** get their fallback values, ensuring results don't depend on call order.
-- **Examples:** rust-analyzer error types, Cairo's cycle detection in [references/patterns.md](references/patterns.md)
+- **Examples:** rust-analyzer error types, Cairo's cycle detection in [references/patterns.md](references/cycle-handling/patterns.md)
 
 ## Choosing a Strategy
 
@@ -64,10 +60,10 @@ fn my_fallback(_db: &dyn Db, _id: salsa::Id, _key: MyKey) -> MyValue {
 In a cycle A ↔ B, **both** must have handlers. Salsa picks the cycle head based on call order. If only A has a handler but B is called first, B becomes head and panics.
 
 ### Monotonicity is Required
-For fixed-point, your `cycle_fn` must be monotone (results only get more "refined"). Oscillation causes panics at 200 iterations. ty guarantees this by **unioning** with previous results. See [references/patterns.md](references/patterns.md).
+For fixed-point, your `cycle_fn` must be monotone (results only get more "refined"). Oscillation causes panics at 200 iterations. ty guarantees this by **unioning** with previous results. See [references/patterns.md](references/cycle-handling/patterns.md).
 
 ### API Reference
-See [references/theory.md](references/theory.md) for detailed `salsa::Cycle` API and attribute signatures.
+See [references/theory.md](references/cycle-handling/theory.md) for detailed `salsa::Cycle` API and attribute signatures.
 
 ## Common Mistakes
 - **Handling only one direction:** All cycle participants must have handlers.

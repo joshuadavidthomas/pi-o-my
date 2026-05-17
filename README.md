@@ -188,27 +188,11 @@ Remote control tmux sessions for interactive CLIs by sending keystrokes and scra
 
 ### [rust](./skills/rust/SKILL.md)
 
-Consolidated Rust router skill for idiomatic Rust judgment across ownership, errors, traits, type design, async/Tokio, atomics, unsafe, macros, testing, performance, serde, interop, and project structure. Replaces the former Rust sub-skill suite with one entry point that teaches core defaults and routes to topic deep dives.
+Rust guidance for idiomatic API design and implementation across ownership, errors, traits, type design, async/Tokio, atomics, unsafe, macros, testing, performance, serde, interop, and project structure.
 
-### Salsa
+### [salsa](./skills/salsa/SKILL.md)
 
-A suite of skills for [Salsa](https://github.com/salsa-rs/salsa), the incremental computation framework for Rust. Salsa powers rust-analyzer, ty, Cairo, and other projects that need sub-second response times on large codebases after small edits. The skills cover everything from getting started to production-grade patterns, with reference material drawn from real-world Salsa projects.
-
-| Skill | Description |
-|-------|-------------|
-| [salsa-accumulators](./skills/salsa-accumulators/SKILL.md) | Side-channel output from tracked functions — diagnostics, warnings, logs |
-| [salsa-advanced-plumbing](./skills/salsa-advanced-plumbing/SKILL.md) | Low-level patterns — `specify`, `singleton`, `attach`, persistence, synthetic writes |
-| [salsa-cancellation](./skills/salsa-cancellation/SKILL.md) | Cancellation handling for interactive systems — LSP servers, watch-mode CLIs |
-| [salsa-cycle-handling](./skills/salsa-cycle-handling/SKILL.md) | Handling recursive/cyclic queries with fixed-point iteration and fallback values |
-| [salsa-database-architecture](./skills/salsa-database-architecture/SKILL.md) | Database struct design, layered trait hierarchies, crate boundaries, test vs production patterns |
-| [salsa-durability](./skills/salsa-durability/SKILL.md) | Optimizing performance by assigning durability levels to skip revalidation |
-| [salsa-incremental-testing](./skills/salsa-incremental-testing/SKILL.md) | Verifying incremental reuse with event capture and memoization assertions |
-| [salsa-lsp-integration](./skills/salsa-lsp-integration/SKILL.md) | Building LSP servers with Salsa — host/snapshot concurrency, editor changes, diagnostics |
-| [salsa-memory-management](./skills/salsa-memory-management/SKILL.md) | Controlling cache growth, LRU sizing, and preventing unbounded memory usage |
-| [salsa-overview](./skills/salsa-overview/SKILL.md) | Start here — what Salsa is, core concepts, and routing to specialized skills |
-| [salsa-production-patterns](./skills/salsa-production-patterns/SKILL.md) | Graduating from prototype to production — the maturity model and scaling strategies |
-| [salsa-query-pipeline](./skills/salsa-query-pipeline/SKILL.md) | Designing tracked function pipelines — return modes, LRU, `no_eq`, granularity strategies |
-| [salsa-struct-selection](./skills/salsa-struct-selection/SKILL.md) | Choosing between `#[salsa::input]`, `#[salsa::tracked]`, `#[salsa::interned]`, and plain types |
+Salsa guidance for building incremental Rust systems: databases, tracked functions, input/tracked/interned structs, query pipelines, accumulators, cancellation, LSP integration, memory management, cycles, durability, and production architecture.
 
 ### [youtube-transcript](./skills/youtube-transcript/SKILL.md)
 

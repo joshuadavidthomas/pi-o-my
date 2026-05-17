@@ -1,7 +1,3 @@
----
-name: salsa-accumulators
-description: Use when reporting diagnostics, errors, warnings, or side-channel output from Salsa tracked functions. Also use when deciding between accumulators vs. return-value diagnostics for large-scale projects.
----
 
 # Accumulators: Side-Channel Output from Tracked Functions
 
@@ -60,16 +56,16 @@ Accumulators are excellent for small-to-medium projects (like `django-language-s
 
 ## Examples and Patterns
 
-- [references/salsa-framework.md](references/salsa-framework.md) — Canonical Calc example and deduplication behavior.
-- [references/djls-patterns.md](references/djls-patterns.md) — Production usage in `django-language-server` (2 diagnostic phases).
-- [references/fe-patterns.md](references/fe-patterns.md) — Hybrid approach: accumulators for parser, return values for analysis.
-- [references/large-scale-diagnostics.md](references/large-scale-diagnostics.md) — Deep dive into why ty, Cairo, and BAML avoid accumulators.
+- [references/salsa-framework.md](references/accumulators/salsa-framework.md) — Canonical Calc example and deduplication behavior.
+- [references/djls-patterns.md](references/accumulators/djls-patterns.md) — Production usage in `django-language-server` (2 diagnostic phases).
+- [references/fe-patterns.md](references/accumulators/fe-patterns.md) — Hybrid approach: accumulators for parser, return values for analysis.
+- [references/large-scale-diagnostics.md](references/accumulators/large-scale-diagnostics.md) — Deep dive into why ty, Cairo, and BAML avoid accumulators.
 
 ## Bridging External Error Systems to Accumulators
 
 **[Legacy API/Architecture: stc]** When wrapping a non-Salsa library that has its own error reporting mechanism (callbacks, emitters, loggers), create an adapter that collects errors into a `Vec`, then push them to a Salsa accumulator after the library finishes. stc does this to bridge SWC's `Handler`/`Emitter` diagnostic system: a custom `Emitter` backed by `Arc<Mutex<Vec<Diagnostic>>>` collects errors during type checking, then each error is pushed to a `Diagnostics` accumulator. This pattern generalizes to any external library with callback-based error reporting.
 
-For the full stc external checker bridge pattern, see the **salsa-query-pipeline** skill's stc reference.
+For the full stc external checker bridge pattern, see the [query-pipeline.md](query-pipeline.md) skill's stc reference.
 
 ## Common Mistakes
 

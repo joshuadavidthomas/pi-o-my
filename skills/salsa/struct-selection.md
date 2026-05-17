@@ -1,7 +1,3 @@
----
-name: salsa-struct-selection
-description: Use when designing Salsa data structures and choosing between #[salsa::input], #[salsa::tracked], #[salsa::interned], or plain Rust types. Resolve lifetime 'db issues, fix 'cycle detected' errors by switching to interned types, and optimize granularity. Reference production patterns from ty (no tracked structs), rust-analyzer (interned locations), Cairo (immortal IDs), and BAML.
----
 
 # Choosing the Right Salsa Struct Type
 
@@ -165,7 +161,7 @@ Production Salsa projects use different combinations of struct types based on th
 | **Immortal IDs** | Cairo | `revisions = usize::MAX` on 38+ interned types for serialization stability. |
 | **All Four Types** | djls | Simplest complete example: 2 inputs, 1 interned, 7 tracked, plain AST nodes. |
 
-For detailed implementation patterns and code examples for each strategy, see [references/real-world-strategies.md](references/real-world-strategies.md).
+For detailed implementation patterns and code examples for each strategy, see [references/real-world-strategies.md](references/struct-selection/real-world-strategies.md).
 
 ## How Many Inputs? (The Cardinality Question)
 
@@ -276,17 +272,17 @@ The distinction: `File` is an input because external code (the file watcher, the
 
 **Forgetting `#[returns(ref)]` on large fields.** Without it, field access clones the value. Use `#[returns(ref)]` for `String`, `Vec`, `Arc`, and other heap-allocated types.
 
-**External types lacking `Debug` or `Eq`.** **[Legacy API/Architecture: stc]** When integrating external libraries, their types may not implement `Debug` (required by Salsa for tracked struct fields) or `Eq`. Wrap them in a newtype: `struct DebugIgnore<T>(pub T)` with a placeholder `Debug` impl, and pair with `#[no_eq]` on the field. This is a pragmatic bridge for incremental adoption of existing libraries. For the full stc `DebugIgnore<T>` pattern, see the **salsa-query-pipeline** skill's stc reference.
+**External types lacking `Debug` or `Eq`.** **[Legacy API/Architecture: stc]** When integrating external libraries, their types may not implement `Debug` (required by Salsa for tracked struct fields) or `Eq`. Wrap them in a newtype: `struct DebugIgnore<T>(pub T)` with a placeholder `Debug` impl, and pair with `#[no_eq]` on the field. This is a pragmatic bridge for incremental adoption of existing libraries. For the full stc `DebugIgnore<T>` pattern, see the [query-pipeline.md](query-pipeline.md) skill's stc reference.
 
 **Tracking at too fine a granularity.** Don't make every expression a tracked struct. Track at "reasonably coarse" boundaries (functions, scopes, modules). Finer tracking means more overhead with diminishing returns.
 
 **Storing tracked/interned structs across revisions.** Both carry `'db` lifetimes. You can't hold onto them while mutating the database. Inputs (which are just integer IDs without `'db`) are safe to store long-term.
 
 For full production code examples, see:
-- [references/real-world-strategies.md](references/real-world-strategies.md) — Comparative overview of strategies
-- [references/ty-patterns.md](references/ty-patterns.md) — ty's "almost no tracked structs" approach
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — rust-analyzer's "intern every definition" approach
-- [references/djls-patterns.md](references/djls-patterns.md) — django-language-server's "all four types in 78 files" (simplest complete example)
-- [references/cairo-patterns.md](references/cairo-patterns.md) — Cairo's "macro-generated interned IDs" approach
-- [references/baml-patterns.md](references/baml-patterns.md) — BAML's "interned locations with type-alias re-exports" and tracked struct wrapper pattern (15 instances)
-- [references/fe-patterns.md](references/fe-patterns.md) — Fe's "Workspace-as-container input" (single input with immutable trie vs side-table pattern), interned collection types (10+ `Vec<T>` wrappers like `AttrListId`, `GenericArgListId`, `FuncParamListId`), tracked methods on inputs
+- [references/real-world-strategies.md](references/struct-selection/real-world-strategies.md) — Comparative overview of strategies
+- [references/ty-patterns.md](references/struct-selection/ty-patterns.md) — ty's "almost no tracked structs" approach
+- [references/rust-analyzer-patterns.md](references/struct-selection/rust-analyzer-patterns.md) — rust-analyzer's "intern every definition" approach
+- [references/djls-patterns.md](references/struct-selection/djls-patterns.md) — django-language-server's "all four types in 78 files" (simplest complete example)
+- [references/cairo-patterns.md](references/struct-selection/cairo-patterns.md) — Cairo's "macro-generated interned IDs" approach
+- [references/baml-patterns.md](references/struct-selection/baml-patterns.md) — BAML's "interned locations with type-alias re-exports" and tracked struct wrapper pattern (15 instances)
+- [references/fe-patterns.md](references/struct-selection/fe-patterns.md) — Fe's "Workspace-as-container input" (single input with immutable trie vs side-table pattern), interned collection types (10+ `Vec<T>` wrappers like `AttrListId`, `GenericArgListId`, `FuncParamListId`), tracked methods on inputs

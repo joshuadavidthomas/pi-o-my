@@ -227,40 +227,19 @@ The router teaches:
 
 Validation: `/home/josh/.agents/skills/skill-authoring/scripts/validate.sh skills/rust` passes.
 
-## Remaining: Salsa
+## Completed: Salsa
 
-**Current:** 13 skills, 4,169 description chars, 2,021 SKILL.md lines total, has `salsa-overview` as partial router
+**Before:** 13 skills (`salsa-*`), 4,169 description chars, 2,021 SKILL.md lines total, with `salsa-overview` as a partial overview.
 
-| Skill | SKILL.md Lines | Reference Files | Reference Lines |
-|-------|---------------|-----------------|-----------------|
-| salsa-overview | 201 | 1 | 81 |
-| salsa-struct-selection | 292 | 7 | 1,324 |
-| salsa-database-architecture | 249 | 8 | 1,794 |
-| salsa-incremental-testing | 247 | 5 | 620 |
-| salsa-cancellation | 228 | 3 | 654 |
-| salsa-query-pipeline | 143 | 9 | 2,053 |
-| salsa-lsp-integration | 149 | 7 | 2,042 |
-| salsa-memory-management | 133 | 5 | 622 |
-| salsa-accumulators | 79 | 8 | 1,279 |
-| salsa-advanced-plumbing | 78 | 0 | 0 |
-| salsa-cycle-handling | 76 | 2 | 256 |
-| salsa-durability | 75 | 4 | 400 |
-| salsa-production-patterns | 71 | 1 | 116 |
+**After:** 1 skill (`salsa`), 12 topic files, and topic-scoped reference directories.
 
-### Plan
-
-Consolidate into single `salsa` skill. `salsa-overview` already has excellent teaching content (mental model, core concepts, code examples, vocabulary, real-world scale) — absorb it as the router SKILL.md.
-
-**Naming collision challenge:** Massive duplication in reference filenames — `ty-patterns.md` appears 9 times, `rust-analyzer-patterns.md` 9 times, etc. Must use topic-scoped subdirectories within references/.
-
-Estimated router SKILL.md: ~200 lines (salsa-overview content is already 201 lines and well-structured).
-
-### Proposed Structure
+### Structure
 
 ```
 salsa/
-├── SKILL.md                              # ~200 lines — mental model, core concepts, routing
-├── struct-selection.md                   # 12 topic files
+├── SKILL.md                              # Mental model, core concepts, examples, routing
+├── README.md                             # Reader-facing coverage and activation examples
+├── struct-selection.md
 ├── query-pipeline.md
 ├── database-architecture.md
 ├── cycle-handling.md
@@ -275,20 +254,22 @@ salsa/
 └── references/
     ├── overview/
     │   └── minimal-example.md
-    ├── struct-selection/                 # Topic-scoped subdirs solve naming collisions
-    │   ├── ty-patterns.md
-    │   ├── rust-analyzer-patterns.md
-    │   ├── cairo-patterns.md
-    │   ├── baml-patterns.md
-    │   ├── djls-patterns.md
-    │   ├── fe-patterns.md
-    │   └── real-world-strategies.md
+    ├── struct-selection/
+    ├── query-pipeline/
+    ├── database-architecture/
     ├── cancellation/
-    │   ├── ty-patterns.md               # Same filename, different subdir
-    │   ├── rust-analyzer-patterns.md
-    │   └── salsa-framework.md
-    └── ... (10 more topic subdirs)
+    └── ...
 ```
+
+### SKILL.md Content
+
+The skill teaches:
+- Salsa's incremental computation mental model and core loop
+- Database, input, tracked function, tracked struct, interned struct, accumulator, revision, and durability concepts
+- Deep-dive links for struct selection, query pipelines, database architecture, cycles, cancellation, durability, testing, memory, LSP integration, accumulators, production patterns, and advanced plumbing
+- Key vocabulary and real-world project scale notes
+
+Validation: `/home/josh/.agents/skills/skill-authoring/scripts/validate.sh skills/salsa` passes.
 
 ## Summary
 

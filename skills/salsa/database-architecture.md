@@ -1,7 +1,3 @@
----
-name: salsa-database-architecture
-description: Use when designing a Salsa database structure (#[salsa::db]). Covers layered trait hierarchies, crate boundaries, non-Salsa state, storage fields, Files side-tables, singleton inputs, and test vs production database patterns. Essential for organizing projects like ty, rust-analyzer, Cairo, and BAML.
----
 
 # Structuring the Salsa Database
 
@@ -67,15 +63,15 @@ pub trait SemanticDb: ModuleResolverDb {
 
 ### Alternative: Blanket-Implemented Group Traits (Cairo)
 
-Cairo blanket-implements all group traits for `Database`, eliminating explicit trait impls for test databases. See [references/cairo-patterns.md](references/cairo-patterns.md) for full Cairo code examples.
+Cairo blanket-implements all group traits for `Database`, eliminating explicit trait impls for test databases. See [references/cairo-patterns.md](references/database-architecture/cairo-patterns.md) for full Cairo code examples.
 
 ### Marker Traits for Compilation Phase Enforcement (Fe)
 
-Fe uses **marker traits** (traits with no methods) to enforce compilation phase boundaries. This prevents span-dependent code from contaminating cacheable analysis. See [references/fe-patterns.md](references/fe-patterns.md) for implementation details.
+Fe uses **marker traits** (traits with no methods) to enforce compilation phase boundaries. This prevents span-dependent code from contaminating cacheable analysis. See [references/fe-patterns.md](references/database-architecture/fe-patterns.md) for implementation details.
 
 ### Database Boilerplate Macros (Fe)
 
-Fe reduces database boilerplate with helper macros instead of Cairo's blanket-impl approach. See [references/fe-patterns.md](references/fe-patterns.md) for macro definitions.
+Fe reduces database boilerplate with helper macros instead of Cairo's blanket-impl approach. See [references/fe-patterns.md](references/database-architecture/fe-patterns.md) for macro definitions.
 
 ## How Many Layers? How Many Concrete Databases?
 
@@ -172,7 +168,7 @@ Both projects store significant state outside Salsa's tracking system as regular
 
 The most important non-Salsa pattern. Both projects use a concurrent hash map to intern files on demand, creating Salsa input structs lazily with appropriate durability.
 
-**Why a side table?** Salsa inputs can't be looked up by value — you need to already have the ID. A `DashMap` provides the path → ID lookup that Salsa doesn't natively offer. See [references/ty-patterns.md](references/ty-patterns.md) for the complete implementation from the Ruff/ty shared infrastructure.
+**Why a side table?** Salsa inputs can't be looked up by value — you need to already have the ID. A `DashMap` provides the path → ID lookup that Salsa doesn't natively offer. See [references/ty-patterns.md](references/database-architecture/ty-patterns.md) for the complete implementation from the Ruff/ty shared infrastructure.
 
 ## Singleton Input Pattern
 
@@ -180,7 +176,7 @@ Global configuration that applies across the entire computation should be a sing
 
 ### Alternative: Input-Behind-Tracked-Function (Cairo)
 
-Cairo uses a different singleton pattern — an input struct with `Option<T>` fields behind a tracked function, with per-layer `init_*_group()` functions. See [references/cairo-patterns.md](references/cairo-patterns.md) for implementation.
+Cairo uses a different singleton pattern — an input struct with `Option<T>` fields behind a tracked function, with per-layer `init_*_group()` functions. See [references/cairo-patterns.md](references/database-architecture/cairo-patterns.md) for implementation.
 
 ## Two Production Databases from One Trait Stack (Mun) [Legacy API/Architecture]
 
@@ -189,11 +185,11 @@ Mun has two separate concrete databases — `CompilerDatabase` (6 query groups i
 - **CompilerDatabase** — CLI compiler and daemon, includes `CodeGenDatabaseStorage` for LLVM. Not `ParallelDatabase` (codegen is single-threaded with `Rc`).
 - **AnalysisDatabase** — LSP server, implements `ParallelDatabase` for snapshot concurrency. Excludes codegen (no LLVM dependency in the LSP binary).
 
-Both share `SourceDatabaseStorage`, `AstDatabaseStorage`, `InternDatabaseStorage`, `DefDatabaseStorage`, and `HirDatabaseStorage`. See [references/mun-patterns.md](references/mun-patterns.md) for details.
+Both share `SourceDatabaseStorage`, `AstDatabaseStorage`, `InternDatabaseStorage`, `DefDatabaseStorage`, and `HirDatabaseStorage`. See [references/mun-patterns.md](references/database-architecture/mun-patterns.md) for details.
 
 ## CloneableDatabase: Parallel Compilation via Rayon (Cairo)
 
-Cairo defines a `CloneableDatabase` trait for `dyn Database` cloning with Rayon parallel iteration. This enables parallel diagnostic warmup and function compilation without the complexity of snapshots. See [references/cairo-patterns.md](references/cairo-patterns.md) for details.
+Cairo defines a `CloneableDatabase` trait for `dyn Database` cloning with Rayon parallel iteration. This enables parallel diagnostic warmup and function compilation without the complexity of snapshots. See [references/cairo-patterns.md](references/database-architecture/cairo-patterns.md) for details.
 
 ## Test Databases
 
@@ -206,10 +202,10 @@ Test databases require event capture to verify incremental behavior. They typica
 - **Layer Implementation**: A test database at layer N must implement every trait from layer 1 through N.
 
 For complete test database implementations, see:
-- [references/ty-patterns.md](references/ty-patterns.md) — Shared test infrastructure with `DbWithTestSystem`.
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — Targeted event logging with `log()` and `log_executed()`.
-- [references/cairo-patterns.md](references/cairo-patterns.md) — Minimal boilerplate via blanket-impl traits.
-- [references/baml-patterns.md](references/baml-patterns.md) — The boilerplate challenge (6 impl blocks per test DB).
+- [references/ty-patterns.md](references/database-architecture/ty-patterns.md) — Shared test infrastructure with `DbWithTestSystem`.
+- [references/rust-analyzer-patterns.md](references/database-architecture/rust-analyzer-patterns.md) — Targeted event logging with `log()` and `log_executed()`.
+- [references/cairo-patterns.md](references/database-architecture/cairo-patterns.md) — Minimal boilerplate via blanket-impl traits.
+- [references/baml-patterns.md](references/database-architecture/baml-patterns.md) — The boilerplate challenge (6 impl blocks per test DB).
 
 ## Production Databases
 
@@ -224,9 +220,9 @@ Production databases differ from test databases in performance tuning and state 
 - **Two-Phase Initialization**: Construct the database with placeholders, then initialize singletons that require `&dyn Db`.
 
 For production implementation details, see:
-- [references/ty-patterns.md](references/ty-patterns.md) — `ProjectDatabase` with the `storage`-last trick and conditional logging.
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — `RootDatabase` with `ManuallyDrop` and the `Nonce` pattern.
-- [references/djls-patterns.md](references/djls-patterns.md) — `DjangoDatabase` settings update pattern.
+- [references/ty-patterns.md](references/database-architecture/ty-patterns.md) — `ProjectDatabase` with the `storage`-last trick and conditional logging.
+- [references/rust-analyzer-patterns.md](references/database-architecture/rust-analyzer-patterns.md) — `RootDatabase` with `ManuallyDrop` and the `Nonce` pattern.
+- [references/djls-patterns.md](references/database-architecture/djls-patterns.md) — `DjangoDatabase` settings update pattern.
 
 ## Common Mistakes
 
@@ -244,6 +240,6 @@ For production implementation details, see:
 
 ### Approachable Example: django-language-server
 
-django-language-server shows the full layered pattern at a more accessible scale (~78 Rust files). It uses a 5-layer trait hierarchy and an overlay file system. See [references/djls-patterns.md](references/djls-patterns.md) for the full architecture.
+django-language-server shows the full layered pattern at a more accessible scale (~78 Rust files). It uses a 5-layer trait hierarchy and an overlay file system. See [references/djls-patterns.md](references/database-architecture/djls-patterns.md) for the full architecture.
 
 For full production code examples, see the references directory.

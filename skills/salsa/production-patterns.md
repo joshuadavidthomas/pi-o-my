@@ -1,7 +1,3 @@
----
-name: salsa-production-patterns
-description: "Guidance on the \"graduation\" from a simple Salsa project to a production-grade system. Use when a project is hitting performance walls, scaling to thousands of files, or moving from a basic prototype to an industry-standard implementation. Covers the maturity model: accumulators → return pyramids, tracked structs → interned IDs, flat DB → layered side-tables, and snappiness optimizations."
----
 
 # Salsa Production Patterns: From Simple to Sophisticated
 
@@ -68,4 +64,4 @@ At the scale of millions of lines of code or thousands of recursive types, even 
 3.  **Watch the heap.** If memory usage grows linearly with every file opened, implement LRU limits.
 4.  **Refactor identity last.** Moving from tracked structs to interned IDs is a major refactor. Only do it if profiling shows the Salsa overhead itself is a bottleneck.
 
-→ For more on specific Level 3 patterns, see **salsa-database-architecture** (side-tables), **salsa-memory-management** (immortality), and **salsa-accumulators** (diagnostic pyramids).
+→ For more on specific Level 3 patterns, see [database-architecture.md](database-architecture.md) (side-tables), [memory-management.md](memory-management.md) (immortality), and [accumulators.md](accumulators.md) (diagnostic pyramids).

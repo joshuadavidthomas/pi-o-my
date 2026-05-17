@@ -1,7 +1,3 @@
----
-name: salsa-cancellation
-description: Use when handling cancellation in Salsa-based interactive systems (LSP servers, CLI tools, watch mode). Covers catching Cancelled unwinding, retry strategies (PendingWrite vs Local), manual cancellation checks in loops, snapshot patterns for concurrency, and real-world implementations from rust-analyzer and the Ruff/ty monorepo.
----
 
 # Handling Cancellation in Salsa
 
@@ -171,13 +167,13 @@ fn fix_all(db: &dyn Db, files: &[File], token: &CancellationToken) -> Result<(),
 - **Applying changes without triggering cancellation first.** Snapshot threads may read a partially-updated database if you don't cancel them before the write.
 
 For full production code and more patterns, see:
-- [references/salsa-framework.md](references/salsa-framework.md) — framework internals
-- [references/ty-patterns.md](references/ty-patterns.md) — CLI catch, nested panic layers, retry traits, worker pool abort, cooperative tokens
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — `Cancellable<T>`, `with_db` wrapper, host/snapshot split, dispatch retry, cache priming
+- [references/salsa-framework.md](references/cancellation/salsa-framework.md) — framework internals
+- [references/ty-patterns.md](references/cancellation/ty-patterns.md) — CLI catch, nested panic layers, retry traits, worker pool abort, cooperative tokens
+- [references/rust-analyzer-patterns.md](references/cancellation/rust-analyzer-patterns.md) — `Cancellable<T>`, `with_db` wrapper, host/snapshot split, dispatch retry, cache priming
 
 ### Additional Reference: wgsl-analyzer [Legacy API/Architecture]
 
-wgsl-analyzer's `RequestDispatcher` uses a const-generic `ALLOW_RETRYING` flag on its `on_with_thread_intent` method to control cancellation behavior per-request type. When retrying is allowed and cancellation occurs, the request is re-queued as `Task::Retry(request)`. Otherwise, it returns `content_modified_error` (LSP error code -32801). This is a cleaner parameterization than branching on error type at the call site. For the full dispatch flow, see the **salsa-lsp-integration** skill's wgsl-analyzer reference.
+wgsl-analyzer's `RequestDispatcher` uses a const-generic `ALLOW_RETRYING` flag on its `on_with_thread_intent` method to control cancellation behavior per-request type. When retrying is allowed and cancellation occurs, the request is re-queued as `Task::Retry(request)`. Otherwise, it returns `content_modified_error` (LSP error code -32801). This is a cleaner parameterization than branching on error type at the call site. For the full dispatch flow, see the [lsp-integration.md](lsp-integration.md) skill's wgsl-analyzer reference.
 
 ### Additional Reference: Mun [Legacy API/Architecture]
 
@@ -225,4 +221,4 @@ where
 }
 ```
 
-This is the pattern that modern Salsa's `Cancelled::catch` encapsulates. For the full LSP architecture see the **salsa-lsp-integration** skill's Mun reference.
+This is the pattern that modern Salsa's `Cancelled::catch` encapsulates. For the full LSP architecture, see [lsp-integration.md](lsp-integration.md) and its Mun reference.
