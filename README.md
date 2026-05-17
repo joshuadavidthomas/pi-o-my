@@ -186,14 +186,6 @@ Patterns for building forms with shadcn-svelte and bits-ui. Covers Field.* compo
 
 Remote control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
 
-### [rust](./skills/rust/SKILL.md)
-
-Rust guidance for idiomatic API design and implementation across ownership, errors, traits, type design, async/Tokio, atomics, unsafe, macros, testing, performance, serde, interop, and project structure.
-
-### [salsa](./skills/salsa/SKILL.md)
-
-Salsa guidance for building incremental Rust systems: databases, tracked functions, input/tracked/interned structs, query pipelines, accumulators, cancellation, LSP integration, memory management, cycles, durability, and production architecture.
-
 ### [youtube-transcript](./skills/youtube-transcript/SKILL.md)
 
 Extract and work with YouTube video transcripts.
@@ -227,41 +219,6 @@ Tmux skill from [mitsuhiko/agent-stuff](https://github.com/mitsuhiko/agent-stuff
 Notify pi extension from [pi-coding-agent examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions) (MIT, Mario Zechner).
 
 Scouts pi extension from [default-anton/pi-finder](https://github.com/default-anton/pi-finder), [default-anton/pi-librarian](https://github.com/default-anton/pi-librarian), and [default-anton/pi-subagent-model-selection](https://github.com/default-anton/pi-subagent-model-selection) (MIT, Anton Kuzmenko).
-
-Salsa skills reference code and patterns from:
-
-- [BAML](https://github.com/BoundaryML/baml) (Apache-2.0)
-- [Cairo](https://github.com/starkware-libs/cairo) (Apache-2.0)
-- [Fe](https://github.com/argotorg/fe) (Apache-2.0)
-- [Mun](https://github.com/mun-lang/mun) (MIT OR Apache-2.0)
-- [Salsa](https://github.com/salsa-rs/salsa) (MIT OR Apache-2.0)
-- [WGSL Analyzer](https://github.com/wgsl-analyzer/wgsl-analyzer) (MIT OR Apache-2.0)
-- [django-language-server](https://github.com/joshuadavidthomas/django-language-server) (Apache-2.0)
-- [rust-analyzer](https://github.com/rust-lang/rust-analyzer) (MIT OR Apache-2.0)
-- [stc](https://github.com/dudykr/stc) (Apache-2.0)
-- [ty](https://github.com/astral-sh/ty) / [Ruff monorepo](https://github.com/astral-sh/ruff) (MIT)
-
-Rust skills reference and adapt guidance from several sources, including:
-
-- [Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/) by Alice Ryhl
-- [Aiming for correctness with types](https://fasterthanli.me/articles/aiming-for-correctness-with-types) by Amos Wenger (fasterthanlime)
-- [Async: What is blocking?](https://ryhl.io/blog/async-what-is-blocking/) by Alice Ryhl
-- [Common Rust Lifetime Misconceptions](https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md) by pretzelhammer (CC BY-SA 4.0)
-- [Rust Atomics and Locks](https://marabos.nl/atomics/) by Mara Bos
-- [Effective Rust](https://www.lurklurk.org/effective-rust/) by David Drysdale (CC BY 4.0)
-- [Error Handling Survey](https://blog.yoshuawuyts.com/error-handling-survey/) by Yoshua Wuyts
-- [Error Handling in Rust](https://blog.burntsushi.net/rust-error-handling/) by Andrew Gallant (BurntSushi)
-- [Error handling in Rust](https://www.lpalmieri.com/posts/error-handling-rust/) by Luca Palmieri
-- [Making Illegal States Unrepresentable](https://corrode.dev/blog/illegal-state/) by corrode.dev
-- [Modular Errors in Rust](https://sabrinajewson.org/blog/errors) by Sabrina Jewson
-- [Parse, Don't Validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) by Alexis King
-- [Pin](https://without.boats/blog/pin/) by Without Boats
-- [Rust API Guidelines](https://github.com/rust-lang/api-guidelines) (MIT OR Apache-2.0)
-- [Rust Design Patterns](https://github.com/rust-unofficial/patterns) (MPL-2.0)
-- [The Rust Programming Language](https://github.com/rust-lang/book) (MIT OR Apache-2.0)
-- [The Rust Reference](https://github.com/rust-lang/reference) (MIT OR Apache-2.0)
-- [The Rustonomicon](https://github.com/rust-lang/nomicon) (MIT OR Apache-2.0)
-- [The Typestate Pattern in Rust](https://cliffle.com/blog/rust-typestate/) by Cliff L. Biffle
 
 AI writing tropes skill from [Xe/site](https://github.com/Xe/site) (zlib, Christine Dodrill). Content sourced from [tropes.fyi](https://tropes.fyi).
 
