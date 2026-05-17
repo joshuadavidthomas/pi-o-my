@@ -1,7 +1,3 @@
----
-name: salsa-lsp-integration
-description: "Use when building an LSP server with Salsa. Covers host/snapshot concurrency, editor changes, cancellation, and diagnostic refresh. Triggers: textDocument/didChange, didChangeWatchedFiles, publishDiagnostics, snapshot, analysis."
----
 
 # Building an LSP Server Backed by Salsa
 
@@ -48,12 +44,12 @@ LSP servers must handle the divergence between disk content and editor content.
 - When file changes on disk (`didChangeWatchedFiles`): Clear the override and update the revision.
 - `source_text(db, file)`: Checks override first, then falls back to disk.
 
-See [references/ty-patterns.md](references/ty-patterns.md) for the `ruff_db` implementation.
+See [references/ty-patterns.md](references/lsp-integration/ty-patterns.md) for the `ruff_db` implementation.
 
 ### Change Event Classification
 Classify events (Created, Changed, Deleted, Rescan) before applying. Batch-applying changes (e.g., grouped by project root) avoids redundant work during large filesystem operations like `git checkout`.
 
-See [references/ty-patterns.md](references/ty-patterns.md) for classification enums.
+See [references/ty-patterns.md](references/lsp-integration/ty-patterns.md) for classification enums.
 
 ### Deduplication
 When applying batched changes, deduplicate file syncs to prevent multiple recomputations of the same file in a single revision.
@@ -69,9 +65,9 @@ An LSP session holds the mutable Salsa database(s) and non-Salsa state (index, w
 Snapshots capture a consistent view for background work by cloning the database and other shared state (`Arc` clones).
 
 Detailed implementations:
-- [references/ty-patterns.md](references/ty-patterns.md) (per-project databases)
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) (AnalysisHost/Analysis split)
-- [references/djls-patterns.md](references/djls-patterns.md) (Session/SessionSnapshot)
+- [references/ty-patterns.md](references/lsp-integration/ty-patterns.md) (per-project databases)
+- [references/rust-analyzer-patterns.md](references/lsp-integration/rust-analyzer-patterns.md) (AnalysisHost/Analysis split)
+- [references/djls-patterns.md](references/lsp-integration/djls-patterns.md) (Session/SessionSnapshot)
 
 ## Cancellation in LSP Context
 
@@ -84,7 +80,7 @@ When a query is cancelled, classify the error to decide the next action:
 | `PropagatedPanic` | Blocked query's thread panicked | Retry (transient) |
 | `Local` | Client sent `$/cancelRequest` | Return `RequestCanceled` error |
 
-See [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) for the dispatch handler implementation.
+See [references/rust-analyzer-patterns.md](references/lsp-integration/rust-analyzer-patterns.md) for the dispatch handler implementation.
 
 ### Per-Request Cancellation Tokens
 For client-initiated cancellation (`$/cancelRequest`), store a `CancellationToken` per request in the host. Calling `token.cancel()` triggers `Cancelled::Local` in the worker thread.
@@ -102,7 +98,7 @@ Each task in the thread pool receives its own cloned database (snapshot) and run
 ### Cache Priming
 Background workers can prime caches (warming up name resolution, etc.) using parallel snapshots. Workers should call `db.unwind_if_revision_cancelled()` between work items to exit quickly when the user types.
 
-See [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) for parallel priming examples.
+See [references/rust-analyzer-patterns.md](references/lsp-integration/rust-analyzer-patterns.md) for parallel priming examples.
 
 ## Real-World Architectures
 
@@ -126,7 +122,7 @@ See [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md)
 
 A critical early decision is whether to build a custom Virtual File System or reuse an existing one.
 
-**wgsl-analyzer** [Legacy API] imports rust-analyzer's `vfs` crate directly (as a git dependency), getting file ID allocation, change tracking, path abstraction, and file watching for free. This is viable when your domain has similar file-handling needs without Rust-specific complexity (macros, build scripts). See [references/wgsl-analyzer-patterns.md](references/wgsl-analyzer-patterns.md) for the VFS→Salsa bridge flow.
+**wgsl-analyzer** [Legacy API] imports rust-analyzer's `vfs` crate directly (as a git dependency), getting file ID allocation, change tracking, path abstraction, and file watching for free. This is viable when your domain has similar file-handling needs without Rust-specific complexity (macros, build scripts). See [references/wgsl-analyzer-patterns.md](references/lsp-integration/wgsl-analyzer-patterns.md) for the VFS→Salsa bridge flow.
 
 **ty** builds its own `Files` side-table (a `DashMap`) with durability-aware file creation, which provides tighter Salsa integration at the cost of more code.
 
@@ -140,10 +136,10 @@ A critical early decision is whether to build a custom Virtual File System or re
 - **Incorrect error codes**: Returning generic errors instead of `ContentModified` (-32801) prevents the client from retrying correctly.
 
 ## References
-- [references/djls-patterns.md](references/djls-patterns.md) — Simplest production example: Session/Snapshot, overlay FS, revision-based invalidation.
-- [references/ty-patterns.md](references/ty-patterns.md) — Session management, change application, file sync, source text overrides.
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — Host/Analysis split, dispatch handler, cache priming, cancellation tokens.
-- [references/wgsl-analyzer-patterns.md](references/wgsl-analyzer-patterns.md) — [Legacy API] VFS reuse from rust-analyzer, GlobalState/Snapshot split, process_changes() flow, const-generic retry dispatch, diagnostic generation tracking.
-- [references/baml-patterns.md](references/baml-patterns.md) — Minimum viable LSP: single-threaded, no snapshots.
-- [references/fe-patterns.md](references/fe-patterns.md) — Workspace-input management details.
-- [references/mun-patterns.md](references/mun-patterns.md) — **[Legacy API]** Mun's Analysis/AnalysisSnapshot LSP + compiler daemon hot-reload loop.
+- [references/djls-patterns.md](references/lsp-integration/djls-patterns.md) — Simplest production example: Session/Snapshot, overlay FS, revision-based invalidation.
+- [references/ty-patterns.md](references/lsp-integration/ty-patterns.md) — Session management, change application, file sync, source text overrides.
+- [references/rust-analyzer-patterns.md](references/lsp-integration/rust-analyzer-patterns.md) — Host/Analysis split, dispatch handler, cache priming, cancellation tokens.
+- [references/wgsl-analyzer-patterns.md](references/lsp-integration/wgsl-analyzer-patterns.md) — [Legacy API] VFS reuse from rust-analyzer, GlobalState/Snapshot split, process_changes() flow, const-generic retry dispatch, diagnostic generation tracking.
+- [references/baml-patterns.md](references/lsp-integration/baml-patterns.md) — Minimum viable LSP: single-threaded, no snapshots.
+- [references/fe-patterns.md](references/lsp-integration/fe-patterns.md) — Workspace-input management details.
+- [references/mun-patterns.md](references/lsp-integration/mun-patterns.md) — **[Legacy API]** Mun's Analysis/AnalysisSnapshot LSP + compiler daemon hot-reload loop.

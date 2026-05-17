@@ -1,7 +1,3 @@
----
-name: salsa-incremental-testing
-description: "Use when verifying Salsa incremental reuse or debugging why queries re-run. Covers event capture, test databases, and assertions for proving tracked functions were skipped after input changes. Triggers: WillExecute, DidValidateMemoizedValue, salsa::Event, incremental test, query re-ran."
----
 
 # Proving Incremental Reuse in Salsa
 
@@ -159,7 +155,7 @@ assert_function_query_was_run(&db, len, goodbye, &events);
 assert_function_query_was_not_run(&db, len, hello, &events);
 ```
 
-These helpers search the event stream for `WillExecute` events matching both the query function name and the input's Salsa ID. See [references/ty-patterns.md](references/ty-patterns.md) for the implementation.
+These helpers search the event stream for `WillExecute` events matching both the query function name and the input's Salsa ID. See [references/ty-patterns.md](references/incremental-testing/ty-patterns.md) for the implementation.
 
 ### Strategy 3: Execution Count (rust-analyzer's approach)
 
@@ -240,8 +236,8 @@ db.assert_logs(expect![[r#"
 **Snapshot tests without count assertions.** Full event log snapshots catch unexpected changes but are brittle — they break when Salsa's internal event ordering changes. Pair them with count-based assertions for the properties you actually care about.
 
 For implementation details and complete examples, see:
-- [references/examples.md](references/examples.md) — Complete runnable tests for field granularity, backtracking, and accumulators
-- [references/early-stage-infrastructure.md](references/early-stage-infrastructure.md) — How BAML, django-language-server, and Mun [Legacy API] set up capture before writing tests
-- [references/ty-patterns.md](references/ty-patterns.md) — ruff_db's event-based assertion helpers
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — rust-analyzer's count-based assertion helpers
-- [references/salsa-framework.md](references/salsa-framework.md) — Salsa's own test infrastructure
+- [references/examples.md](references/incremental-testing/examples.md) — Complete runnable tests for field granularity, backtracking, and accumulators
+- [references/early-stage-infrastructure.md](references/incremental-testing/early-stage-infrastructure.md) — How BAML, django-language-server, and Mun [Legacy API] set up capture before writing tests
+- [references/ty-patterns.md](references/incremental-testing/ty-patterns.md) — ruff_db's event-based assertion helpers
+- [references/rust-analyzer-patterns.md](references/incremental-testing/rust-analyzer-patterns.md) — rust-analyzer's count-based assertion helpers
+- [references/salsa-framework.md](references/incremental-testing/salsa-framework.md) — Salsa's own test infrastructure

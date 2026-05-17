@@ -1,7 +1,3 @@
----
-name: salsa-advanced-plumbing
-description: Low-level and "Level 4" Salsa patterns for specialized use cases. Use when you need to avoid passing &db everywhere, need project-wide singleton inputs, want to serialize your database to disk, or need to override tracked functions for specific instances. Covers specify, singleton, attach, persistence, and synthetic writes.
----
 
 # Salsa Advanced Plumbing: Level 4 Patterns
 

@@ -1,7 +1,3 @@
----
-name: salsa-durability
-description: Use when optimizing Salsa performance via durability levels — assigning LOW, MEDIUM, or HIGH durability to inputs to skip revalidation. Useful for fixing "laggy" IDEs, reducing query latency on keystrokes, and tuning shallow verification. Covers the mental model, check-before-update pattern, per-field durability, and real-world strategies from ty/ruff and rust-analyzer.
----
 
 # Tuning with Durability Levels
 
@@ -69,7 +65,7 @@ Mix durability levels on a single struct to isolate stable identity/metadata fro
 
 ## References
 
-- [references/common-patterns.md](references/common-patterns.md) — Implementation details for per-field and derived durability.
-- [references/ty-patterns.md](references/ty-patterns.md) — ty's durability-by-file-root strategy.
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — rust-analyzer's durability-by-source-kind strategy.
-- [references/salsa-framework.md](references/salsa-framework.md) — Shallow verification algorithm internals and durability tests.
+- [references/common-patterns.md](references/durability/common-patterns.md) — Implementation details for per-field and derived durability.
+- [references/ty-patterns.md](references/durability/ty-patterns.md) — ty's durability-by-file-root strategy.
+- [references/rust-analyzer-patterns.md](references/durability/rust-analyzer-patterns.md) — rust-analyzer's durability-by-source-kind strategy.
+- [references/salsa-framework.md](references/durability/salsa-framework.md) — Shallow verification algorithm internals and durability tests.

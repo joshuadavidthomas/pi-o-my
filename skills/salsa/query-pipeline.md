@@ -1,7 +1,3 @@
----
-name: salsa-query-pipeline
-description: Use when designing tracked functions and query pipelines in Salsa — choosing return modes (returns(ref), returns(deref)), setting LRU cache sizes (lru=N), using no_eq, applying the specify pattern, or wrapping non-Salsa arguments. Covers granularity strategies, early cutoff patterns (dual-query split), and real-world pipelines from django-language-server, Ruff/ty, rust-analyzer, Cairo, BAML, and Fe.
----
 
 # Designing the Query Pipeline
 
@@ -23,8 +19,8 @@ File (input)
 
 Parse the whole file (cheap), but type-check per scope (expensive, enables granular reuse). This is the **split pattern**: one coarse function feeds many fine-grained ones.
 
-- **Simplest example:** [references/djls-patterns.md](references/djls-patterns.md) (django-language-server)
-- **Large-scale example:** [references/cairo-patterns.md](references/cairo-patterns.md) (Cairo compiler)
+- **Simplest example:** [references/djls-patterns.md](references/query-pipeline/djls-patterns.md) (django-language-server)
+- **Large-scale example:** [references/cairo-patterns.md](references/query-pipeline/cairo-patterns.md) (Cairo compiler)
 
 ## Tracked Function Basics
 
@@ -95,34 +91,34 @@ When a tracked function re-executes, Salsa normally compares the new result to t
 
 ### The Wrapper Function Pattern
 Used to pass plain Rust types as arguments by wrapping them in an interned ingredient.
-See: [references/common-patterns.md#the-wrapper-function-pattern](references/common-patterns.md#the-wrapper-function-pattern)
+See: [references/common-patterns.md#the-wrapper-function-pattern](references/query-pipeline/common-patterns.md#the-wrapper-function-pattern)
 
 ### Tracked Methods on Input Structs
 Allows computing derived state (e.g., `file.kind(db)`) directly on inputs.
-See: [references/common-patterns.md#tracked-methods-on-input-structs](references/common-patterns.md#tracked-methods-on-input-structs)
+See: [references/common-patterns.md#tracked-methods-on-input-structs](references/query-pipeline/common-patterns.md#tracked-methods-on-input-structs)
 
 ### The Dual-Query / Triple-Split Pattern
 Maximizes early cutoff by separating cosmetic changes (spans/comments) from semantic ones (signatures).
-See: [references/common-patterns.md#the-dual-query-or-triple-split-pattern](references/common-patterns.md#the-dual-query-or-triple-split-pattern) and [references/baml-patterns.md](references/baml-patterns.md).
+See: [references/common-patterns.md#the-dual-query-or-triple-split-pattern](references/query-pipeline/common-patterns.md#the-dual-query-or-triple-split-pattern) and [references/baml-patterns.md](references/query-pipeline/baml-patterns.md).
 
 ### The Thin Salsa Shell Over Existing Libraries
 **[Legacy API/Architecture: stc]** When you have an existing compiler or tool you want to incrementalize, you don't have to rewrite everything with Salsa. The "thin shell" approach wraps existing library calls in tracked functions — Salsa handles caching and invalidation while the non-Salsa libraries do all the heavy lifting. stc wraps the entire SWC TypeScript parser and its own type checker with just 7 tracked functions in a single crate.
-See: [references/stc-patterns.md](references/stc-patterns.md)
+See: [references/stc-patterns.md](references/query-pipeline/stc-patterns.md)
 
 ### Extending Queries to Machine Code (LLVM Backend)
 **[Legacy API/Architecture: Mun]** Mun is the only surveyed project where Salsa's computation graph extends to binary code generation. A `CodeGenDatabase` query group sits atop the HIR stack, producing LLVM IR and shared libraries as tracked function results. The pipeline: `source_text → parse → item_tree → package_defs → type_inference → module_partition → assembly_ir / target_assembly`. The LLVM `TargetMachine` is not thread-safe, so Mun returns it wrapped as `ByAddress<Rc<TargetMachine>>` — using `Rc` (not `Arc`) and `ByAddress` for pointer-equality caching. This works because the codegen layer is single-threaded. The compiler daemon then watches for file changes and only writes assemblies whose `target_assembly` query results actually changed, enabling hot reloading.
-See: [references/mun-patterns.md](references/mun-patterns.md)
+See: [references/mun-patterns.md](references/query-pipeline/mun-patterns.md)
 
 ### The Dummy Tracked Parameter
 Cairo uses a `Tracked = ()` dummy parameter for 50+ tracked functions to satisfy Salsa's first-parameter optimization when using blanket-impl delegation.
-See: [references/cairo-patterns.md#trait-method-tracked-function-delegation](references/cairo-patterns.md#trait-method-tracked-function-delegation)
+See: [references/cairo-patterns.md#trait-method-tracked-function-delegation](references/query-pipeline/cairo-patterns.md#trait-method-tracked-function-delegation)
 
 ### Deriving Metadata from Existing Inputs
 **[Legacy API/Architecture: wgsl-analyzer]** Rather than creating new Salsa inputs for file-level metadata like language edition, wgsl-analyzer computes `EditionedFileId` (file + edition) inside a tracked function by inspecting the file path extension (`.wgsl` vs `.wesl`). This avoids input proliferation for data derivable from existing inputs. If a file's language variant can be determined from its path, make it a derived query, not a new input field.
 
 ### Diagnostic Aggregation Pipelines
 Multi-layer pyramids from per-item → module → file → crate, with parallel warmup via Rayon.
-See: [references/cairo-patterns.md#multi-layer-diagnostic-aggregation](references/cairo-patterns.md#multi-layer-diagnostic-aggregation)
+See: [references/cairo-patterns.md#multi-layer-diagnostic-aggregation](references/query-pipeline/cairo-patterns.md#multi-layer-diagnostic-aggregation)
 
 ## Common Mistakes
 
@@ -133,11 +129,11 @@ See: [references/cairo-patterns.md#multi-layer-diagnostic-aggregation](reference
 - **Using `specify` with `lru`.** These attributes are incompatible.
 
 For full production code examples, see:
-- [references/djls-patterns.md](references/djls-patterns.md) — django-language-server (simplest complete example)
-- [references/ty-patterns.md](references/ty-patterns.md) — ty's layer-by-layer pipeline
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — rust-analyzer's layered query graph
-- [references/cairo-patterns.md](references/cairo-patterns.md) — Cairo's 8-layer compiler pipeline
-- [references/baml-patterns.md](references/baml-patterns.md) — BAML's HIR/TIR/VIR pipeline
-- [references/fe-patterns.md](references/fe-patterns.md) — Fe's tracked methods and fixed-point cycles
-- [references/stc-patterns.md](references/stc-patterns.md) — **[Legacy API]** stc's "thin Salsa shell" over SWC parser + type checker
-- [references/mun-patterns.md](references/mun-patterns.md) — **[Legacy API]** Mun's LLVM codegen as Salsa query endpoint, hot-reloading compiler daemon
+- [references/djls-patterns.md](references/query-pipeline/djls-patterns.md) — django-language-server (simplest complete example)
+- [references/ty-patterns.md](references/query-pipeline/ty-patterns.md) — ty's layer-by-layer pipeline
+- [references/rust-analyzer-patterns.md](references/query-pipeline/rust-analyzer-patterns.md) — rust-analyzer's layered query graph
+- [references/cairo-patterns.md](references/query-pipeline/cairo-patterns.md) — Cairo's 8-layer compiler pipeline
+- [references/baml-patterns.md](references/query-pipeline/baml-patterns.md) — BAML's HIR/TIR/VIR pipeline
+- [references/fe-patterns.md](references/query-pipeline/fe-patterns.md) — Fe's tracked methods and fixed-point cycles
+- [references/stc-patterns.md](references/query-pipeline/stc-patterns.md) — **[Legacy API]** stc's "thin Salsa shell" over SWC parser + type checker
+- [references/mun-patterns.md](references/query-pipeline/mun-patterns.md) — **[Legacy API]** Mun's LLVM codegen as Salsa query endpoint, hot-reloading compiler daemon

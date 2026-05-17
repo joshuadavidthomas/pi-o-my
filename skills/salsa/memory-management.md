@@ -1,7 +1,3 @@
----
-name: salsa-memory-management
-description: Use when managing Salsa cache growth, choosing LRU sizes, or troubleshooting memory leaks, RAM usage, and OOM in long-running apps (LSP, watch-mode CLI). Covers lru, no_eq, returns(ref), heap_size, and preventing unbounded memory growth.
----
 
 # Controlling Salsa Memory Usage
 
@@ -38,7 +34,7 @@ Sizes usually grow with computational cost. Expensive queries get bigger caches.
 | rust-analyzer | `parse_macro_expansion` | 512 | Moderate frequency |
 | rust-analyzer | `borrowck` | 2024 | Most expensive computation |
 
-For tiered LRU patterns (128 → 512 → 2024), see [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md).
+For tiered LRU patterns (128 → 512 → 2024), see [references/rust-analyzer-patterns.md](references/memory-management/rust-analyzer-patterns.md).
 
 ## Equality Skipping with `no_eq`
 
@@ -81,7 +77,7 @@ Tracked function results live in Salsa's storage. By default, accessing a result
 | `returns(as_ref)` | `Option<&T>` | Optional large values |
 | `returns(as_deref)` | `Option<&T::Target>` | Optional smart pointers |
 
-For systematic `returns(ref)` usage in collection-heavy projects, see [references/baml-patterns.md](references/baml-patterns.md).
+For systematic `returns(ref)` usage in collection-heavy projects, see [references/baml-patterns.md](references/memory-management/baml-patterns.md).
 
 ## Memory Profiling with `heap_size`
 
@@ -100,8 +96,8 @@ let info = <dyn salsa::Database>::memory_usage(&db);
 
 ### Advanced Profiling Patterns
 
-- **Shared-Object Tracking:** ty uses a thread-local tracker to avoid double-counting `Arc` allocations. See [references/ty-patterns.md](references/ty-patterns.md).
-- **Automatic Injection:** Cairo uses custom proc macro wrappers to auto-inject `heap_size` on every ingredient. See [references/cairo-patterns.md](references/cairo-patterns.md).
+- **Shared-Object Tracking:** ty uses a thread-local tracker to avoid double-counting `Arc` allocations. See [references/ty-patterns.md](references/memory-management/ty-patterns.md).
+- **Automatic Injection:** Cairo uses custom proc macro wrappers to auto-inject `heap_size` on every ingredient. See [references/cairo-patterns.md](references/memory-management/cairo-patterns.md).
 
 ## Disabling Interned GC: `revisions = usize::MAX`
 
@@ -112,11 +108,11 @@ Salsa garbage-collects interned values that haven't been read in recent revision
 pub struct TypeId<'db> { ... }
 ```
 
-With `revisions = usize::MAX`, interned IDs are **immortal** — they're never reclaimed. The `RevisionQueue` inside Salsa detects this constant and skips all GC logic at zero cost. See [references/cairo-patterns.md](references/cairo-patterns.md) for real-world usage in serialized caches.
+With `revisions = usize::MAX`, interned IDs are **immortal** — they're never reclaimed. The `RevisionQueue` inside Salsa detects this constant and skips all GC logic at zero cost. See [references/cairo-patterns.md](references/memory-management/cairo-patterns.md) for real-world usage in serialized caches.
 
 ## Compile-Time Memory: `ManuallyDrop` Optimization
 
-Large databases can suffer from slow compile times due to duplicated drop glue in vtables. Wrapping storage in `ManuallyDrop` eliminates this bloat. See [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) for the implementation details.
+Large databases can suffer from slow compile times due to duplicated drop glue in vtables. Wrapping storage in `ManuallyDrop` eliminates this bloat. See [references/rust-analyzer-patterns.md](references/memory-management/rust-analyzer-patterns.md) for the implementation details.
 
 ## Common Mistakes
 
@@ -126,8 +122,8 @@ Large databases can suffer from slow compile times due to duplicated drop glue i
 - **Using `no_eq` without extraction:** Causes massive re-computation downstream. Pair with `Arc`-based extraction queries.
 
 For detailed real-world patterns and internal mechanics, see:
-- [references/salsa-internals.md](references/salsa-internals.md) — Runtime LRU adjustment, zero-cost policy, and ArcSwap GC.
-- [references/ty-patterns.md](references/ty-patterns.md) — Universal heap tracking and shared-object counters.
-- [references/rust-analyzer-patterns.md](references/rust-analyzer-patterns.md) — Tiered LRU and `ManuallyDrop`.
-- [references/cairo-patterns.md](references/cairo-patterns.md) — Immortal IDs and automatic `heap_size`.
-- [references/baml-patterns.md](references/baml-patterns.md) — Minimalist `returns(ref)`-only strategy.
+- [references/salsa-internals.md](references/memory-management/salsa-internals.md) — Runtime LRU adjustment, zero-cost policy, and ArcSwap GC.
+- [references/ty-patterns.md](references/memory-management/ty-patterns.md) — Universal heap tracking and shared-object counters.
+- [references/rust-analyzer-patterns.md](references/memory-management/rust-analyzer-patterns.md) — Tiered LRU and `ManuallyDrop`.
+- [references/cairo-patterns.md](references/memory-management/cairo-patterns.md) — Immortal IDs and automatic `heap_size`.
+- [references/baml-patterns.md](references/memory-management/baml-patterns.md) — Minimalist `returns(ref)`-only strategy.

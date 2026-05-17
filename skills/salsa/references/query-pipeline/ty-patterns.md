@@ -169,7 +169,7 @@ fn definition_cycle_initial<'db>(
 **Key choices:**
 - `cycle_initial` returns `Type::divergent(id)` — bottom value for iteration
 - `cycle_fn` normalizes by comparing with previous iteration
-- See the `salsa-cycle-handling` skill for details on cycle strategies
+- See [cycle-handling.md](../../cycle-handling.md) for cycle strategies
 
 ### The Wrapper Pattern: Interning Non-Salsa Arguments (ty_python_semantic)
 
