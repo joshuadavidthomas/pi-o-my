@@ -147,6 +147,17 @@ Registers five tools:
 - **specialist** (capable): Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set
 - **reviewer** (capable): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through review lenses such as Hickey structural simplicity and Lowy volatility-based decomposition. Returns evidence-backed findings and actions without leaking reviewer deliberation into the main session
 
+Also registers `/review`, a command that gathers an artifact and calls the reviewer scout directly:
+
+```text
+/review design <sketch>
+/review plan <plan-or-path>
+/review diff [base] [--strict] [--hickey|--lowy]
+/review staged
+/review file <path>
+/review boundary <path-or-description>
+```
+
 #### [skill-requires-path](./pi-extensions/skill-requires-path/)
 
 Strips skills from the system prompt when their `metadata.requires-path` frontmatter field doesn't exist in the current project. Skills declare a path requirement under metadata (e.g., `metadata: { requires-path: ".jj/" }`) and the extension removes them from the LLM's context when the path is absent — the LLM never sees the skill.

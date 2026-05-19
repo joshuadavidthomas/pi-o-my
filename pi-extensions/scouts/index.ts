@@ -13,6 +13,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { FINDER_TOOL } from "./finder/tool.ts";
 import { LIBRARIAN_TOOL } from "./librarian/tool.ts";
 import { ORACLE_TOOL } from "./oracle/tool.ts";
+import { registerReviewCommand } from "./reviewer/command.ts";
 import { REVIEWER_TOOL } from "./reviewer/tool.ts";
 import { SPECIALIST_TOOL } from "./specialist/tool.ts";
 
@@ -22,4 +23,5 @@ export default function scoutsExtension(pi: ExtensionAPI) {
   pi.registerTool(ORACLE_TOOL);
   pi.registerTool(SPECIALIST_TOOL);
   pi.registerTool(REVIEWER_TOOL);
+  registerReviewCommand(pi);
 }
