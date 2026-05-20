@@ -2,9 +2,11 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 
-import { REVIEWER_TOOL } from "./tool.ts";
+import { executeScout } from "../execute.ts";
+import type { ScoutConfig } from "../types.ts";
+import { buildSpecialistConfig, type SpecialistTool } from "../specialist/config.ts";
 
 type Lens = "both" | "hickey" | "lowy";
 type ReviewContext = "none" | "brief" | "transcript";
@@ -30,28 +32,23 @@ function shellWords(input: string): string[] {
       escaping = false;
       continue;
     }
-
     if (char === "\\" && quote !== "'") {
       escaping = true;
       continue;
     }
-
     if ((char === '"' || char === "'") && quote === null) {
       quote = char;
       continue;
     }
-
     if (char === quote) {
       quote = null;
       continue;
     }
-
     if (/\s/.test(char) && quote === null) {
       if (current) words.push(current);
       current = "";
       continue;
     }
-
     current += char;
   }
 
@@ -97,9 +94,7 @@ function parseArgs(args: string): ParsedArgs {
     }
     if (word === "--context") {
       const value = words[i + 1];
-      if (value === "none" || value === "brief" || value === "transcript") {
-        context = value;
-      }
+      if (value === "none" || value === "brief" || value === "transcript") context = value;
       i += 1;
       continue;
     }
@@ -132,7 +127,7 @@ async function optionalRepoConfig(cwd: string): Promise<string> {
   return "";
 }
 
-function lensesFor(lens: Lens): string[] {
+function lensesFor(lens: Lens): Array<"hickey" | "lowy"> {
   if (lens === "hickey") return ["hickey"];
   if (lens === "lowy") return ["lowy"];
   return ["hickey", "lowy"];
@@ -154,11 +149,11 @@ function artifactTypeFor(subcommand: string): string {
 }
 
 function helpText(): string {
-  return `Structural review runs isolated reviewer scouts over a sketch, plan, file, or diff.
+  return `Structural review runs the actual Hickey and Lowy skills as isolated specialist scouts.
 
-Hickey asks: is this structurally simple? It looks for complected concerns, fragmented concepts, duplicated abstractions, hidden invariants, and accidental complexity.
+Hickey asks: is this structurally simple? It uses the hickey skill unchanged.
 
-Lowy asks: do the boundaries contain change? It looks for modules split by related functionality instead of volatility, unstable interfaces, duplicated receptacles, and change blast radius.
+Lowy asks: do the boundaries contain change? It uses the lowy skill unchanged.
 
 How to use it:
 - Early idea: /review design <sketch>
@@ -167,13 +162,10 @@ How to use it:
 - Local work only: /review staged
 - Focused audit: /review file <path> or /review boundary <path-or-description>
 
-How it runs:
-/review gathers the artifact and calls the reviewer tool directly from the extension command. It does not ask the main agent to call a tool, and reviewer deliberation stays out of the main session.
-
 Modes:
-- default: both lenses, notes mode
-- --strict: every real finding must be fixed now or marked No-op
-- --hickey / --lowy: run only one lens
+- default: both skills, notes mode
+- --strict: tell the skills to use Fix now / No-op dispositions
+- --hickey / --lowy: run only one skill
 - --context none|brief|transcript: describe how much context is included; diff/file default to none, design/plan default to brief
 - --base <base>: choose the diff base
 
@@ -186,18 +178,12 @@ Examples:
 /review boundary src/billing --lowy`;
 }
 
-function getResultText(result: Awaited<ReturnType<typeof REVIEWER_TOOL.execute>>): string {
-  return result.content?.find((item) => item.type === "text")?.text ?? "(no review output)";
-}
-
 async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subject: string; subjectLabel: string }> {
   if (parsed.subcommand === "design" || parsed.subcommand === "plan") {
     const text = parsed.rest.join(" ").trim();
     if (!text) throw new Error(`Usage: /review ${parsed.subcommand} <text-or-path>`);
     const possiblePath = resolve(cwd, text);
-    if (existsSync(possiblePath)) {
-      return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
-    }
+    if (existsSync(possiblePath)) return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
     return { subject: text, subjectLabel: "inline text" };
   }
 
@@ -207,9 +193,7 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
     return { subject: await git(cwd, ["diff", range]), subjectLabel: `git diff ${range}` };
   }
 
-  if (parsed.subcommand === "staged") {
-    return { subject: await git(cwd, ["diff", "--cached"]), subjectLabel: "git diff --cached" };
-  }
+  if (parsed.subcommand === "staged") return { subject: await git(cwd, ["diff", "--cached"]), subjectLabel: "git diff --cached" };
 
   if (parsed.subcommand === "file") {
     const file = parsed.rest[0];
@@ -221,18 +205,54 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
     const text = parsed.rest.join(" ").trim();
     if (!text) throw new Error("Usage: /review boundary <description-or-path>");
     const possiblePath = resolve(cwd, text);
-    if (existsSync(possiblePath)) {
-      return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
-    }
+    if (existsSync(possiblePath)) return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
     return { subject: text, subjectLabel: "inline boundary description" };
   }
 
   throw new Error(helpText());
 }
 
+function reviewTask(options: {
+  lens: "hickey" | "lowy";
+  subcommand: string;
+  subjectLabel: string;
+  subject: string;
+  mode: "notes" | "strict";
+  context: ReviewContext;
+  repoConfig: string;
+}): string {
+  const disposition = options.mode === "strict"
+    ? "Use strict disposition: every real finding must be Fix in this PR / Fix now or No-op. No defer."
+    : "Use notes disposition: separate must-fix findings from advisory notes.";
+
+  return [
+    `Review ${options.subjectLabel}.`,
+    `Artifact source: /review ${options.subcommand}.`,
+    `Artifact type: ${artifactTypeFor(options.subcommand)}.`,
+    `Context mode: ${options.context}.`,
+    disposition,
+    options.repoConfig ? `\n${options.repoConfig}` : "",
+    "\nArtifact:",
+    options.subject,
+  ].join("\n");
+}
+
+function resultText(result: Awaited<ReturnType<typeof executeScout>>): string {
+  return result.content?.find((item) => item.type === "text")?.text ?? "(no review output)";
+}
+
+async function buildConfig(lens: "hickey" | "lowy", cwd: string): Promise<ScoutConfig> {
+  const config = await buildSpecialistConfig(lens, cwd, {
+    configName: `reviewer:${lens}`,
+    tools: ["read", "bash"] satisfies SpecialistTool[],
+  });
+  if ("error" in config) throw new Error(config.error);
+  return config;
+}
+
 export function registerReviewCommand(pi: ExtensionAPI) {
   pi.registerCommand("review", {
-    description: "Gather an artifact and run the isolated reviewer scout directly",
+    description: "Gather an artifact and run the hickey/lowy skills in isolated specialist scouts",
     getArgumentCompletions: (prefix) => {
       const items = ["design", "plan", "diff", "staged", "file", "boundary", "help"];
       const filtered = items.filter((item) => item.startsWith(prefix));
@@ -254,37 +274,35 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 
         ctx.ui.setStatus("review", "reviewing…");
         const mode = parsed.strict ? "strict" : "notes";
+        const context = parsed.context ?? defaultContextFor(parsed.subcommand);
+        const repoConfig = await optionalRepoConfig(ctx.cwd);
         const lenses = lensesFor(parsed.lens);
-        const query = [
-          `Review ${subjectLabel}.`,
-          `Artifact source: /review ${parsed.subcommand}.`,
-          `Apply ${lenses.join(" and ")} lens${lenses.length === 1 ? "" : "es"}.`,
-          mode === "strict"
-            ? "Use strict mode: every real finding must be Fix now or No-op."
-            : "Use notes mode: separate Must fix from Advisory notes.",
-          "Return evidence-backed findings, synthesis, and concrete actions.",
-        ].join(" ");
 
-        const result = await REVIEWER_TOOL.execute(
-          `review-command-${Date.now()}`,
-          {
-            query,
-            artifactType: artifactTypeFor(parsed.subcommand),
-            artifact: subject,
-            lenses,
-            mode,
-            context: parsed.context ?? defaultContextFor(parsed.subcommand),
-            repoConfig: await optionalRepoConfig(ctx.cwd),
-          },
-          ctx.signal,
-          undefined,
-          ctx,
-        );
+        const outputs = await Promise.all(lenses.map(async (lens) => {
+          const config = await buildConfig(lens, ctx.cwd);
+          const result = await executeScout(
+            config,
+            {
+              task: reviewTask({
+                lens,
+                subcommand: parsed.subcommand,
+                subjectLabel,
+                subject,
+                mode,
+                context,
+                repoConfig,
+              }),
+            },
+            ctx.signal,
+            undefined,
+            ctx as ExtensionContext,
+          );
+          return `# ${lens}\n\n${resultText(result)}`;
+        }));
 
-        const text = getResultText(result);
         pi.sendMessage({
           customType: "review-result",
-          content: text,
+          content: outputs.join("\n\n"),
           display: true,
         });
       } catch (error) {
