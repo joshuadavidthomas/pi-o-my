@@ -148,7 +148,7 @@ Registers four tools:
 
 #### [skill-requires-path](./pi-extensions/skill-requires-path/)
 
-Strips skills from the system prompt when their `requires-path` frontmatter field doesn't exist in the current project. Skills declare a path requirement (e.g., `requires-path: ".jj/"`) and the extension removes them from the LLM's context when the path is absent — the LLM never sees the skill.
+Strips skills from the system prompt when their `metadata.requires-path` frontmatter field doesn't exist in the current project. Skills declare a path requirement under metadata (e.g., `metadata: { requires-path: ".jj/" }`) and the extension removes them from the LLM's context when the path is absent — the LLM never sees the skill.
 
 #### [statusline](./pi-extensions/statusline.ts)
 

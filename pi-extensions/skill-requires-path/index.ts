@@ -1,12 +1,13 @@
 /**
  * skill-requires-path
  *
- * Strips skills from the system prompt when their `requires-path`
+ * Strips skills from the system prompt when their `metadata.requires-path`
  * frontmatter field doesn't exist in the current project.
  *
  *   ---
  *   name: jj
- *   requires-path: ".jj/"
+ *   metadata:
+ *     requires-path: ".jj/"
  *   ---
  *
  * The value is checked relative to the working directory. When the
@@ -38,7 +39,7 @@ function parseFrontmatter(content: string): Record<string, unknown> {
 }
 
 /**
- * Scan a skill directory for skills with requires-path.
+ * Scan a skill directory for skills with metadata.requires-path.
  */
 function scanSkillDir(dir: string): SkillGuard[] {
 	const guards: SkillGuard[] = [];
@@ -61,7 +62,12 @@ function scanSkillDir(dir: string): SkillGuard[] {
 			try {
 				const content = readFileSync(skillFile, "utf-8");
 				const fm = parseFrontmatter(content);
-				const requiresPath = fm["requires-path"];
+				const metadata = fm.metadata;
+				if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+					continue;
+				}
+
+				const requiresPath = (metadata as Record<string, unknown>)["requires-path"];
 				if (typeof requiresPath !== "string") continue;
 
 				const name = typeof fm.name === "string" ? fm.name : basename(fullPath);
