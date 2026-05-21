@@ -3,14 +3,19 @@ import { describe, expect, it } from "bun:test";
 import { parseArgs } from "./args.ts";
 
 describe("review command args", () => {
-  it("defaults to repo with all lenses in notes mode", () => {
+  it("defaults bare review to diff with all lenses in notes mode", () => {
     expect(parseArgs("")).toMatchObject({
-      subcommand: "repo",
+      subcommand: "diff",
       rest: [],
       strict: false,
       lens: "all",
       followup: "synthesize",
     });
+  });
+
+  it("defaults flag-only review to diff", () => {
+    expect(parseArgs("--strict")).toMatchObject({ subcommand: "diff", explicitSubcommand: false, strict: true });
+    expect(parseArgs("--grug")).toMatchObject({ subcommand: "diff", explicitSubcommand: false, lens: "grug" });
   });
 
   it("parses diff options and a lens flag", () => {

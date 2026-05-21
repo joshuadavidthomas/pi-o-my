@@ -9,6 +9,7 @@ export type ReviewFollowup = "synthesize" | "fix" | "none";
 export type ParsedArgs = {
   subcommand: string;
   rest: string[];
+  explicitSubcommand: boolean;
   base?: string;
   strict: boolean;
   lens: ReviewLensSelection;
@@ -83,7 +84,8 @@ function shellWords(input: string): string[] {
 
 export function parseArgs(args: string): ParsedArgs {
   const words = shellWords(args.trim());
-  const subcommand = words[0]?.startsWith("--") ? "repo" : words.shift() ?? "repo";
+  const explicitSubcommand = words[0] !== undefined && isReviewSubcommand(words[0]);
+  const subcommand = explicitSubcommand || (words[0] !== undefined && !words[0].startsWith("--")) ? words.shift() ?? "diff" : "diff";
   const rest: string[] = [];
   let base: string | undefined;
   let strict = false;
@@ -131,12 +133,13 @@ export function parseArgs(args: string): ParsedArgs {
     rest.push(word);
   }
 
-  return { subcommand, rest, base, strict, lens, context, followup };
+  return { subcommand, rest, explicitSubcommand, base, strict, lens, context, followup };
 }
 
 export function shortUsage(): string {
   return `Usage:
-/review [repo]
+/review
+/review repo
 /review design <sketch>
 /review plan <plan-or-path>
 /review diff [base] [--strict] [${lensFlagList()}]
@@ -175,7 +178,8 @@ Ousterhout asks: does this design hide the right knowledge behind deep, obvious 
 Feathers asks: can this legacy change be made safely with characterization tests and seams?
 
 How to use it:
-- Current repository: /review or /review repo
+- Current local changes, or last commit when clean: /review or /review diff
+- Current repository: /review repo
 - Early idea: /review design <sketch>
 - Before implementation: /review plan <plan-or-path>
 - After implementation: /review diff [base]

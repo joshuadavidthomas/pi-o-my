@@ -149,7 +149,8 @@ Registers five tools:
 Also registers `/review`, a command that gathers an artifact and calls the reviewer scout directly:
 
 ```text
-/review [repo]
+/review
+/review repo
 /review design <sketch>
 /review plan <plan-or-path>
 /review diff [base] [--strict] [--hickey|--lowy|--grug|--beck|--muratori|--lamport|--ousterhout|--feathers]

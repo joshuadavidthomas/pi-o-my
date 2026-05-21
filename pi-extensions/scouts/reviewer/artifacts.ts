@@ -1,50 +1,19 @@
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 
 import type { ParsedArgs } from "./args.ts";
 import type { ReviewArtifactType, ReviewContext } from "./run.ts";
+import { vcsFor, type VcsAdapter } from "./vcs.ts";
 
 export type CollectedArtifact = {
   subject: string;
   subjectLabel: string;
 };
 
-async function git(cwd: string, args: string[]): Promise<string> {
-  return new Promise((resolvePromise, reject) => {
-    execFile("git", args, { cwd, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(stderr.trim() || error.message));
-        return;
-      }
-      resolvePromise(stdout);
-    });
-  });
-}
-
-async function tryGit(cwd: string, args: string[]): Promise<string | undefined> {
-  try {
-    return await git(cwd, args);
-  } catch {
-    return undefined;
-  }
-}
-
-async function gitRefExists(cwd: string, ref: string): Promise<boolean> {
-  return await tryGit(cwd, ["rev-parse", "--verify", "--quiet", ref]) !== undefined;
-}
-
-async function defaultDiffBase(cwd: string): Promise<string> {
-  const upstream = (await tryGit(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]))?.trim();
-  if (upstream) return upstream;
-
-  for (const candidate of ["main", "master"]) {
-    if (await gitRefExists(cwd, candidate)) return candidate;
-  }
-
-  throw new Error("Could not determine a diff base. Pass /review diff --base <ref>.");
-}
+export type ArtifactDeps = {
+  vcs?: VcsAdapter;
+};
 
 export async function optionalRepoConfig(cwd: string): Promise<string> {
   const candidates = [join(cwd, ".pi", "review.md"), join(cwd, ".review-lenses.md")];
@@ -81,17 +50,18 @@ function invalidRepoTargetText(cwd: string, parsed: ParsedArgs): string {
   return `/review repo does not accept a positional target: ${target}.${suggestion}`;
 }
 
-export async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<CollectedArtifact> {
+export async function collectArtifact(cwd: string, parsed: ParsedArgs, deps: ArtifactDeps = {}): Promise<CollectedArtifact> {
+  const vcs = deps.vcs ?? vcsFor(cwd);
+
   if (parsed.subcommand === "repo") {
     if (parsed.rest.length > 0) throw new Error(invalidRepoTargetText(cwd, parsed));
 
-    const [head, status, files] = await Promise.all([
-      git(cwd, ["rev-parse", "--short", "HEAD"]),
-      git(cwd, ["status", "--short", "--untracked-files=all"]),
-      git(cwd, ["ls-files"]),
+    const [status, files] = await Promise.all([
+      vcs.status(cwd),
+      vcs.trackedFiles(cwd),
     ]);
     return {
-      subject: `Review the current repository at ${cwd}. Use tools to inspect the files relevant to each finding.\n\nHEAD: ${head.trim()}\n\nWorking tree status:\n${status.trim() || "clean"}\n\nTracked files:\n${files.trim()}`,
+      subject: `Review the current ${vcs.name} repository at ${cwd}. Use tools to inspect the files relevant to each finding.\n\nWorking tree status:\n${status.trim() || "clean"}\n\nTracked files:\n${files.trim()}`,
       subjectLabel: "current repository",
     };
   }
@@ -105,12 +75,15 @@ export async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<
   }
 
   if (parsed.subcommand === "diff") {
-    const base = parsed.base ?? parsed.rest[0] ?? await defaultDiffBase(cwd);
-    const range = base.includes("...") || base.includes("..") ? base : `${base}...HEAD`;
-    return { subject: await git(cwd, ["diff", range]), subjectLabel: `git diff ${range}` };
+    if (!parsed.explicitSubcommand && parsed.rest.length > 0) {
+      throw new Error(`/review does not accept a positional target without a review kind: ${parsed.rest.join(" ")}. Use /review file <path>, /review boundary <path>, or /review diff <base>.`);
+    }
+
+    const base = parsed.base ?? parsed.rest[0];
+    return base ? vcs.diffFromBase(cwd, base) : vcs.defaultReviewDiff(cwd);
   }
 
-  if (parsed.subcommand === "staged") return { subject: await git(cwd, ["diff", "--cached"]), subjectLabel: "git diff --cached" };
+  if (parsed.subcommand === "staged") return vcs.stagedDiff(cwd);
 
   if (parsed.subcommand === "file") {
     const file = parsed.rest[0];
@@ -127,8 +100,8 @@ export async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<
       if (pathStat.isDirectory()) {
         const repoPath = relative(cwd, possiblePath) || ".";
         const [files, status] = await Promise.all([
-          git(cwd, ["ls-files", "--", repoPath]),
-          git(cwd, ["status", "--short", "--untracked-files=all", "--", repoPath]),
+          vcs.trackedFiles(cwd, repoPath),
+          vcs.status(cwd, repoPath),
         ]);
         return {
           subject: `Review the boundary at ${text}. It is a directory, so inspect the listed files with tools before making claims.\n\nWorking tree status in boundary:\n${status.trim() || "clean"}\n\nTracked files in boundary:\n${files.trim() || "(no tracked files)"}`,
