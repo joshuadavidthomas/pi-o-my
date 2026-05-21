@@ -6,7 +6,7 @@ import { getMarkdownTheme, ToolExecutionComponent, type ExtensionAPI, type Exten
 import { Container, Key, Markdown, matchesKey, Spacer, TUI, type Component, type Terminal } from "@mariozechner/pi-tui";
 
 import type { ScoutDetails } from "../types.ts";
-import type { ReviewLens } from "./config.ts";
+import { isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
 import { runReview, selectReviewLenses, type ReviewContext, type ReviewLensSelection, type ReviewMode, type ReviewScoutResult } from "./run.ts";
 import { REVIEWER_TOOL } from "./tool.ts";
 
@@ -42,6 +42,16 @@ const REVIEW_SUBCOMMANDS = ["repo", "design", "plan", "diff", "staged", "file", 
 
 function isReviewSubcommand(value: string): boolean {
   return REVIEW_SUBCOMMANDS.includes(value as (typeof REVIEW_SUBCOMMANDS)[number]);
+}
+
+function lensFromFlag(flag: string): ReviewLens | undefined {
+  if (!flag.startsWith("--")) return undefined;
+  const lens = flag.slice(2);
+  return isReviewLens(lens) ? lens : undefined;
+}
+
+function lensFlagList(): string {
+  return REVIEW_LENSES.map((lens) => `--${lens}`).join("|");
 }
 
 function shellWords(input: string): string[] {
@@ -100,20 +110,13 @@ function parseArgs(args: string): ParsedArgs {
       strict = false;
       continue;
     }
-    if (word === "--hickey") {
-      lens = "hickey";
-      continue;
-    }
-    if (word === "--lowy") {
-      lens = "lowy";
+    const flagLens = lensFromFlag(word);
+    if (flagLens) {
+      lens = flagLens;
       continue;
     }
     if (word === "--both" || word === "--all") {
       lens = "all";
-      continue;
-    }
-    if (word === "--grug") {
-      lens = "grug";
       continue;
     }
     if (word === "--fix") {
@@ -165,7 +168,7 @@ async function optionalRepoConfig(cwd: string): Promise<string> {
 }
 
 function defaultContextFor(subcommand: string): ReviewContext {
-  if (subcommand === "design" || subcommand === "plan" || subcommand === "session") return "brief";
+  if (subcommand === "design" || subcommand === "plan") return "brief";
   return "none";
 }
 
@@ -176,7 +179,6 @@ function artifactTypeFor(subcommand: string): string {
   if (subcommand === "design") return "design";
   if (subcommand === "file") return "file";
   if (subcommand === "boundary") return "module";
-  if (subcommand === "session") return "session";
   return "other";
 }
 
@@ -185,7 +187,7 @@ function shortUsage(): string {
 /review [repo]
 /review design <sketch>
 /review plan <plan-or-path>
-/review diff [base] [--strict] [--hickey|--lowy|--grug]
+/review diff [base] [--strict] [${lensFlagList()}]
 /review staged
 /review file <path>
 /review boundary <path-or-description>`;
@@ -221,7 +223,7 @@ How to use it:
 Modes:
 - default: all three lenses, notes mode
 - --strict: tell the lenses to use Fix now / No-op dispositions
-- --hickey / --lowy / --grug: run only one lens
+- ${REVIEW_LENSES.map((lens) => `--${lens}`).join(" / ")}: run only one lens
 - --context none|brief|transcript: describe how much context is included; diff/file default to none, design/plan default to brief
 - --base <base>: choose the diff base
 - default follow-up: ask the main agent to synthesize reviewer findings after all selected passes

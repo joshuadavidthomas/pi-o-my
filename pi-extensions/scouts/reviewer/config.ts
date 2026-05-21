@@ -7,7 +7,12 @@ import { createFactCheckTool } from "./tools/fact-check.ts";
 import type { ScoutConfig } from "../types.ts";
 import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "../specialist/prompt.ts";
 
-export type ReviewLens = "hickey" | "lowy" | "grug";
+export const REVIEW_LENSES = ["hickey", "lowy", "grug"] as const;
+export type ReviewLens = (typeof REVIEW_LENSES)[number];
+
+export function isReviewLens(value: unknown): value is ReviewLens {
+  return typeof value === "string" && (REVIEW_LENSES as readonly string[]).includes(value);
+}
 
 const REVIEWER_DIR = dirname(fileURLToPath(import.meta.url));
 const LENSES_DIR = join(REVIEWER_DIR, "lenses");

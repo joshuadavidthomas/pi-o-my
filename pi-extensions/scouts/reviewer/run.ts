@@ -3,7 +3,7 @@ import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { executeScout } from "../execute.ts";
 import { computeOverallStatus } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
-import { buildReviewerConfig, type ReviewLens } from "./config.ts";
+import { buildReviewerConfig, isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
 import { hasResultText, resultText } from "./result.ts";
 
 export type ReviewMode = "notes" | "strict";
@@ -43,20 +43,20 @@ export type RunReviewResult = {
   hasText: boolean;
 };
 
-export const REVIEW_LENSES = ["hickey", "lowy", "grug"] as const satisfies readonly ReviewLens[];
-
-export function isReviewLens(value: unknown): value is ReviewLens {
-  return value === "hickey" || value === "lowy" || value === "grug";
-}
-
 export function selectReviewLenses(selection: ReviewLensSelection): ReviewLens[] {
   return selection === "all" ? [...REVIEW_LENSES] : [selection];
 }
 
 export function normalizeReviewLenses(raw: unknown): ReviewLens[] {
-  const values = Array.isArray(raw) ? raw : [];
-  const lenses = values.filter(isReviewLens);
-  return lenses.length > 0 ? [...new Set(lenses)] : [...REVIEW_LENSES];
+  if (raw === undefined || raw === null) return [...REVIEW_LENSES];
+  if (!Array.isArray(raw) || raw.length === 0) return [...REVIEW_LENSES];
+
+  const unsupported = raw.filter((lens) => !isReviewLens(lens));
+  if (unsupported.length > 0) {
+    throw new Error(`Unsupported reviewer lens: ${unsupported.map(String).join(", ")}. Supported lenses: ${REVIEW_LENSES.join(", ")}.`);
+  }
+
+  return [...new Set(raw as ReviewLens[])];
 }
 
 export function buildReviewTask(options: Omit<RunReviewOptions, "ctx" | "signal" | "lenses" | "model" | "onUpdate">): string {

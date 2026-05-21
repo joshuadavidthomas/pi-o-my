@@ -4,7 +4,8 @@ import { Type } from "typebox";
 import { ScoutCall, ScoutResult } from "../render.ts";
 import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
-import { ModelParam, validateQuery } from "../validate.ts";
+import { makeErrorResult, ModelParam, validateQuery } from "../validate.ts";
+import { REVIEW_LENSES } from "./config.ts";
 import { normalizeReviewLenses, runReview, type ReviewContext, type ReviewMode } from "./run.ts";
 
 export const ReviewerParams = Type.Object({
@@ -30,9 +31,9 @@ export const ReviewerParams = Type.Object({
   ),
   lenses: Type.Optional(
     Type.Array(
-      Type.String({ enum: ["hickey", "lowy", "grug", "correctness", "security", "testing", "ux", "maintainability"] }),
+      Type.String({ enum: [...REVIEW_LENSES] }),
       {
-        description: "Review lenses to apply. Defaults to [\"hickey\", \"lowy\", \"grug\"]. Hickey, Lowy, and Grug dispatch to reviewer-local lens prompts; other lenses are ignored by this scout.",
+        description: "Review lenses to apply. Defaults to all supported reviewer-local lenses.",
         maxItems: 8,
       },
     ),
@@ -72,6 +73,15 @@ function reviewContext(value: unknown): ReviewContext {
   return value === "none" || value === "brief" || value === "transcript" ? value : "brief";
 }
 
+function titleSuffixForLenses(raw: unknown): string | undefined {
+  try {
+    const lenses = normalizeReviewLenses(raw);
+    return lenses.length === 1 ? lenses[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> = {
   name: "reviewer",
   label: "Reviewer",
@@ -86,11 +96,19 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
     const finishTracking = trackScoutToolCall(toolCallId);
     try {
       const values = params as Record<string, unknown>;
+      const query = String(values.query ?? "").trim();
+      let lenses: ReturnType<typeof normalizeReviewLenses>;
+      try {
+        lenses = normalizeReviewLenses(values.lenses);
+      } catch (error) {
+        return makeErrorResult(error instanceof Error ? error.message : String(error), query);
+      }
+
       const review = await runReview({
         ctx,
         signal,
-        lenses: normalizeReviewLenses(values.lenses),
-        query: String(values.query ?? "").trim(),
+        lenses,
+        query,
         artifact: typeof values.artifact === "string" ? values.artifact.trim() : "",
         artifactType: String(values.artifactType ?? "unspecified").trim(),
         context: reviewContext(values.context),
@@ -111,18 +129,12 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
   },
 
   renderCall(args, theme, context) {
-    const lenses = Array.isArray((args as Record<string, unknown>).lenses)
-      ? ((args as Record<string, unknown>).lenses as unknown[]).filter((lens): lens is string => typeof lens === "string")
-      : [];
-    const titleSuffix = lenses.length === 1 ? lenses[0] : undefined;
+    const titleSuffix = titleSuffixForLenses((args as Record<string, unknown>).lenses);
     return new ScoutCall("reviewer", { theme, executionStarted: context.executionStarted, titleSuffix });
   },
 
   renderResult(result, options, theme, context) {
-    const lenses = Array.isArray((context.args as Record<string, unknown>).lenses)
-      ? ((context.args as Record<string, unknown>).lenses as unknown[]).filter((lens): lens is string => typeof lens === "string")
-      : [];
-    const titleSuffix = lenses.length === 1 ? lenses[0] : undefined;
+    const titleSuffix = titleSuffixForLenses((context.args as Record<string, unknown>).lenses);
     const component = context.lastComponent instanceof ScoutResult
       ? context.lastComponent
       : new ScoutResult(result, options, theme, "reviewer", titleSuffix);
