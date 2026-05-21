@@ -58,7 +58,7 @@ export function extractDisplayItems(messages: readonly AgentMessage[]): DisplayI
         const text = extractToolResultText(msg);
         if (text) toolItem.result = text;
         if (msg.isError) toolItem.isError = true;
-        if (isPartialToolResult(msg)) toolItem.isPartial = true;
+        toolItem.isPartial = isPartialToolResult(msg);
         const nestedScout = scoutDetailsFromUnknown(getToolResultDetails(msg));
         if (nestedScout) toolItem.nestedScout = nestedScout;
       }

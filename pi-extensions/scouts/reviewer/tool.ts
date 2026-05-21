@@ -14,7 +14,7 @@ export const ReviewerParams = Type.Object({
       "Write a complete review brief for the Reviewer scout.",
       "Include what artifact is being reviewed, the constraints, and what kind of output is useful.",
       "Reviewer is for judging a concrete artifact, not open-ended exploration. Use finder/oracle first if you do not yet know what to review.",
-      "Good: 'Review this diff for Hickey structural simplicity. Strict mode. Focus on changed files and surrounding module context.'",
+      "Good: 'Review this diff for Beck tidy-first change economics. Strict mode. Focus on the behavior/structure split and smallest safe sequence.'",
       "Bad: 'look around and tell me what to improve'",
     ].join("\n"),
   }),
@@ -68,10 +68,11 @@ function reviewContext(value: unknown): ReviewContext {
   return value === "none" || value === "brief" || value === "transcript" ? value : "brief";
 }
 
-function reviewArtifactType(value: unknown): ReviewArtifactType {
+function reviewArtifactType(value: unknown): ReviewArtifactType | undefined {
+  if (value === undefined) return "other";
   return typeof value === "string" && (REVIEW_ARTIFACT_TYPES as readonly string[]).includes(value)
     ? value as ReviewArtifactType
-    : "other";
+    : undefined;
 }
 
 function reviewLens(value: unknown): ReviewLens | undefined {
@@ -84,7 +85,7 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
   description:
     "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through one isolated reviewer lens. For multi-lens reviews, call reviewer multiple times in the same assistant turn, one call per lens. Use finder for locating code and oracle for understanding code before judging it.",
   promptGuidelines: [
-    "The reviewer tool runs exactly one lens per call. For a Hickey + Lowy + Grug review, emit three parallel reviewer tool calls with lens set to hickey, lowy, and grug. Do not pass arrays of lenses.",
+    "The reviewer tool runs exactly one lens per call. For a Hickey + Lowy + Grug + Beck review, emit four parallel reviewer tool calls with lens set to hickey, lowy, grug, and beck. Do not pass arrays of lenses.",
   ],
   parameters: ReviewerParams,
 
@@ -100,6 +101,10 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
       if (!lens) {
         return makeErrorResult(`Unsupported reviewer lens: ${String(values.lens)}. Supported lenses: ${REVIEW_LENSES.join(", ")}.`, query);
       }
+      const artifactType = reviewArtifactType(values.artifactType);
+      if (!artifactType) {
+        return makeErrorResult(`Unsupported reviewer artifactType: ${String(values.artifactType)}. Supported artifact types: ${REVIEW_ARTIFACT_TYPES.join(", ")}.`, query);
+      }
 
       const review = await runReviewLens({
         ctx,
@@ -107,7 +112,7 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
         lens,
         query,
         artifact: typeof values.artifact === "string" ? values.artifact.trim() : "",
-        artifactType: reviewArtifactType(values.artifactType),
+        artifactType,
         context: reviewContext(values.context),
         mode: reviewMode(values.mode),
         contextText: typeof values.contextText === "string" ? values.contextText.trim() : "",

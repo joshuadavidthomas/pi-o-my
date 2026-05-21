@@ -36,7 +36,7 @@ export function registerReviewCommand(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review", {
-    description: "Gather an artifact and run the hickey/lowy/grug reviewer lenses in isolated scouts",
+    description: "Gather an artifact and run reviewer lenses in isolated scouts",
     getArgumentCompletions: (prefix) => {
       const items = [...REVIEW_SUBCOMMANDS, "help"];
       const filtered = items.filter((item) => item.startsWith(prefix));

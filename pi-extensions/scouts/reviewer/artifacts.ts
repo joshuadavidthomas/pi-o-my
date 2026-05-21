@@ -72,8 +72,19 @@ export function artifactTypeFor(subcommand: string): ReviewArtifactType {
   return "other";
 }
 
+function invalidRepoTargetText(cwd: string, parsed: ParsedArgs): string {
+  const target = parsed.rest.join(" ").trim();
+  const possiblePath = resolve(cwd, target);
+  const suggestion = target && existsSync(possiblePath)
+    ? ` Use /review file ${target} or /review boundary ${target} instead.`
+    : "";
+  return `/review repo does not accept a positional target: ${target}.${suggestion}`;
+}
+
 export async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<CollectedArtifact> {
   if (parsed.subcommand === "repo") {
+    if (parsed.rest.length > 0) throw new Error(invalidRepoTargetText(cwd, parsed));
+
     const [head, status, files] = await Promise.all([
       git(cwd, ["rev-parse", "--short", "HEAD"]),
       git(cwd, ["status", "--short", "--untracked-files=all"]),

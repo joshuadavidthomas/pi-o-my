@@ -156,13 +156,15 @@ export function invalidInvocationText(cwd: string, parsed: ParsedArgs): string {
 }
 
 export function helpText(): string {
-  return `Structural review runs reviewer-local Hickey, Lowy, and Grug lenses as isolated scouts.
+  return `Structural review runs reviewer-local Hickey, Lowy, Grug, and Beck lenses as isolated scouts.
 
 Hickey asks: is this structurally simple?
 
 Lowy asks: do the boundaries contain change?
 
 Grug asks: does this make the next change smaller in brain?
+
+Beck asks: what smallest tidy makes the intended change easy?
 
 How to use it:
 - Current repository: /review or /review repo
@@ -173,7 +175,7 @@ How to use it:
 - Focused audit: /review file <path> or /review boundary <path-or-description>
 
 Modes:
-- default: all three lenses, notes mode
+- default: all reviewer lenses, notes mode
 - --strict: tell the lenses to use Fix now / No-op dispositions
 - ${REVIEW_LENSES.map((lens) => `--${lens}`).join(" / ")}: run only one lens
 - --context none|brief|transcript: describe how much context is included; diff/file default to none, design/plan default to brief

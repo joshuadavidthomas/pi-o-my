@@ -40,6 +40,56 @@ function words(command: string): string[] {
   return command.trim().split(/\s+/).filter(Boolean);
 }
 
+function splitShellSegments(command: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | null = null;
+  let escaping = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      current += char;
+      escaping = true;
+      continue;
+    }
+
+    if ((char === "'" || char === '"') && quote === null) {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === quote) {
+      quote = null;
+      current += char;
+      continue;
+    }
+
+    if (quote === null && (char === ";" || char === "|" || (char === "&" && next === "&"))) {
+      const segment = current.trim();
+      if (segment) segments.push(segment);
+      current = "";
+      if ((char === "|" && next === "|") || (char === "&" && next === "&")) i += 1;
+      continue;
+    }
+
+    current += char;
+  }
+
+  const segment = current.trim();
+  if (segment) segments.push(segment);
+  return segments;
+}
+
 function gitSubcommand(command: string): string | undefined {
   const tokens = words(command);
   if (tokens[0] !== "git") return undefined;
@@ -80,25 +130,19 @@ export function isReadOnlyCommand(command: string): { ok: boolean; reason?: stri
     }
   }
 
-  const segments = command.split(/[|;]/).map((s) => s.trim()).filter(Boolean);
+  const segments = splitShellSegments(command);
 
   for (const segment of segments) {
     const inner = segment.replace(/^\(+/, "").replace(/\)+$/, "").trim();
     const lead = extractLeadCommand(inner);
 
     if (!lead) continue;
-
-    const parts = inner.split(/\s*(?:&&|\|\|)\s*/);
-    for (const part of parts) {
-      const partLead = extractLeadCommand(part);
-      if (!partLead) continue;
-      if (!ALLOWED_COMMANDS.has(partLead)) {
-        return { ok: false, reason: `Command '${partLead}' is not in the read-only allowlist` };
-      }
-      if (partLead === "git") {
-        const gitCheck = validateGitCommand(part);
-        if (!gitCheck.ok) return gitCheck;
-      }
+    if (!ALLOWED_COMMANDS.has(lead)) {
+      return { ok: false, reason: `Command '${lead}' is not in the read-only allowlist` };
+    }
+    if (lead === "git") {
+      const gitCheck = validateGitCommand(inner);
+      if (!gitCheck.ok) return gitCheck;
     }
   }
 

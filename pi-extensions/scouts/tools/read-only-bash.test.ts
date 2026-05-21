@@ -44,8 +44,15 @@ describe("read-only bash validation", () => {
     expectBlocked("git show --ext-diff HEAD");
   });
 
+  it("allows quoted shell metacharacters inside safe commands", () => {
+    expectAllowed('rg "foo|bar"');
+    expectAllowed("rg 'foo;bar'");
+    expectAllowed('rg "foo|bar" | head');
+  });
+
   it("blocks shell helpers with command execution features", () => {
     expectBlocked("awk 'BEGIN { system(\"date\") }'");
     expectBlocked("find . -maxdepth 1");
+    expectBlocked("echo hi > file");
   });
 });
