@@ -177,10 +177,6 @@ Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings n
 
 Detect and eliminate common AI writing tropes from prose. Comprehensive catalog of patterns (word choice, sentence structure, paragraph layout, tone, formatting, composition) that mark AI-generated writing, with a self-check workflow. Source: [tropes.fyi](https://tropes.fyi).
 
-### [brave-search](./skills/brave-search/SKILL.md)
-
-Web search and content extraction via Brave Search API.
-
 ### [researching-codebases](./skills/researching-codebases/SKILL.md)
 
 Methodical approach to researching unfamiliar codebases using scout subagents.
