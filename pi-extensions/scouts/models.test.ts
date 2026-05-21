@@ -350,6 +350,20 @@ describe("scout model selection from a main session", () => {
     expect(result).toBeNull();
   });
 
+  it("resolves bare Claude family aliases to current model IDs", () => {
+    const currentModel = getCurrentModel("anthropic", "claude-sonnet-4-6");
+
+    const result = resolveWorkloadModel(registry, currentModel, {
+      provider: currentModel.provider,
+      workload: "deep",
+      explicitModelId: "sonnet",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.model.id).toBe("claude-sonnet-4-6");
+    expect(result?.model.provider).toBe("anthropic");
+  });
+
   it("lets an explicit override bypass the main-session provider choice", () => {
     const currentModel = getCurrentModel("anthropic", "claude-sonnet-4-6");
 

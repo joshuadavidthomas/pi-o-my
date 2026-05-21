@@ -6,7 +6,7 @@
 import type { AgentMessage, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage, TextContent, ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { DisplayItem } from "./types.ts";
+import type { DisplayItem, ScoutDetails } from "./types.ts";
 
 type ToolResultLike = Pick<AgentToolResult<unknown>, "content"> | ToolResultMessage<unknown>;
 
@@ -58,6 +58,9 @@ export function extractDisplayItems(messages: readonly AgentMessage[]): DisplayI
         const text = extractToolResultText(msg);
         if (text) toolItem.result = text;
         if (msg.isError) toolItem.isError = true;
+        if (isPartialToolResult(msg)) toolItem.isPartial = true;
+        const nestedScout = scoutDetailsFromUnknown(getToolResultDetails(msg));
+        if (nestedScout) toolItem.nestedScout = nestedScout;
       }
     }
   }
@@ -67,6 +70,14 @@ export function extractDisplayItems(messages: readonly AgentMessage[]): DisplayI
 // Format a tool call for inline display
 export function formatToolCallParts(name: string, args: Record<string, unknown>): { label: string; summary: string } {
   switch (name) {
+    case "factCheck": {
+      const target = typeof args.target === "string" && args.target.trim() ? args.target.trim() : "draft";
+      const draft = typeof args.draft === "string" ? args.draft.trim() : "";
+      const summary = draft
+        ? `${target}: ${draft.split("\n")[0]}`
+        : target;
+      return { label: "factCheck", summary: shortenPaths(summary) };
+    }
     case "bash": {
       const cmd = shortenPaths(((args.command as string) || "").trim());
       return { label: "bash", summary: cmd };
@@ -133,6 +144,23 @@ function isAssistantMessage(message: AgentMessage): message is AssistantMessage 
 
 function isToolResultMessage(message: AgentMessage): message is ToolResultMessage<unknown> {
   return typeof message === "object" && message !== null && "role" in message && message.role === "toolResult";
+}
+
+function isPartialToolResult(message: ToolResultMessage<unknown>): boolean {
+  return "isPartial" in message && message.isPartial === true;
+}
+
+function getToolResultDetails(message: ToolResultMessage<unknown>): unknown {
+  return "details" in message ? message.details : undefined;
+}
+
+export function scoutDetailsFromUnknown(value: unknown): ScoutDetails | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const details = value as Partial<ScoutDetails>;
+  if ((details.mode === "single" || details.mode === "parallel") && Array.isArray(details.runs)) {
+    return details as ScoutDetails;
+  }
+  return undefined;
 }
 
 // Extract text content from a tool result message

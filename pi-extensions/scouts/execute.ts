@@ -25,7 +25,7 @@ import {
   type ResourceLoader,
 } from "@mariozechner/pi-coding-agent";
 
-import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS } from "./display.ts";
+import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS, scoutDetailsFromUnknown } from "./display.ts";
 import { resolveDiversityModel, resolveWorkloadModel } from "./models.ts";
 import { createScoutResourceLoader } from "./resources.ts";
 import { computeOverallStatus, createInitialRun } from "./state.ts";
@@ -144,12 +144,12 @@ export function bumpDefaultEventTargetMaxListeners(): () => void {
   };
 }
 
-function prepareScoutTools(config: ScoutConfig, cwd: string): {
+function prepareScoutTools(config: ScoutConfig, cwd: string, ctx?: ExtensionContext): {
   builtinTools: BuiltinToolName[];
   customTools: ToolDefinition[];
 } {
   const allTools = config.createTools
-    ? config.createTools(cwd)
+    ? config.createTools(cwd, ctx)
     : [createReadTool(cwd), createBashTool(cwd)];
 
   const builtinTools = allTools
@@ -446,7 +446,7 @@ class ScoutWorkflow {
     runPlan: ScoutRunPlan,
     resourceLoader: ResourceLoader,
   ): Promise<{ session: AgentSession }> {
-    const { builtinTools, customTools } = prepareScoutTools(this.config, this.ctx.cwd);
+    const { builtinTools, customTools } = prepareScoutTools(this.config, this.ctx.cwd, this.ctx);
     const activeToolNames = [...builtinTools, ...customTools.map((tool) => tool.name)];
     return createAgentSession({
       cwd: this.ctx.cwd,
@@ -534,6 +534,9 @@ class ScoutWorkflow {
             if (item.type === "tool" && item.toolCallId === event.toolCallId) {
               const text = extractToolResultText(event.partialResult);
               if (text) item.result = text;
+              item.isPartial = true;
+              const nestedScout = scoutDetailsFromUnknown(event.partialResult?.details);
+              if (nestedScout) item.nestedScout = nestedScout;
               break;
             }
           }
@@ -547,8 +550,11 @@ class ScoutWorkflow {
             const item = run.displayItems[i];
             if (item.type === "tool" && item.toolCallId === event.toolCallId) {
               if (event.isError) item.isError = true;
+              item.isPartial = false;
               const text = extractToolResultText(event.result);
               if (text) item.result = text;
+              const nestedScout = scoutDetailsFromUnknown(event.result?.details);
+              if (nestedScout) item.nestedScout = nestedScout;
               break;
             }
           }

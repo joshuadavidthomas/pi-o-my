@@ -145,14 +145,15 @@ Registers five tools:
 - **librarian** (fast, overridable to capable): External research scout — searches GitHub repos and the web, fetches code and documentation
 - **oracle** (capable): Deep code analysis scout — traces data flow, analyzes architecture, finds patterns with precise file:line references. Read-only (restricted bash allowlist)
 - **specialist** (capable): Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set
-- **reviewer** (capable): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through review lenses such as Hickey structural simplicity and Lowy volatility-based decomposition. Returns evidence-backed findings and actions without leaking reviewer deliberation into the main session
+- **reviewer** (capable): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through review lenses such as Hickey structural simplicity, Lowy volatility-based decomposition, and Grug smol-brain changeability. Returns evidence-backed findings and actions without leaking reviewer deliberation into the main session
 
 Also registers `/review`, a command that gathers an artifact and calls the reviewer scout directly:
 
 ```text
+/review [repo]
 /review design <sketch>
 /review plan <plan-or-path>
-/review diff [base] [--strict] [--hickey|--lowy]
+/review diff [base] [--strict] [--hickey|--lowy|--grug]
 /review staged
 /review file <path>
 /review boundary <path-or-description>
