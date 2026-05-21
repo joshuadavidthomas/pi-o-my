@@ -1,17 +1,15 @@
-set dotenv-load := true
+set dotenv-load
 set shell := ["bash", "-euo", "pipefail", "-c"]
-set unstable := true
+set unstable
 
 # List all available commands
 [private]
 default:
     @just --list --list-submodules
 
+fmt:
+    just --fmt
+
 # Install everything (skills, agents, extensions)
 install:
     ./install.sh
-
-# Update pi-subagents from upstream
-pi-subagents-update:
-    git subtree pull --prefix=runtimes/pi/extensions/pi-subagents \
-        https://github.com/nicobailon/pi-subagents.git main --squash
