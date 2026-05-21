@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createBashTool, createReadTool, type ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { createReadTool, type ExtensionContext } from "@mariozechner/pi-coding-agent";
 
 import { createFactCheckTool } from "./tools/fact-check.ts";
 import type { ScoutConfig } from "../types.ts";
 import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "../specialist/prompt.ts";
+import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
 
 export const REVIEW_LENSES = ["hickey", "lowy", "grug"] as const;
 export type ReviewLens = (typeof REVIEW_LENSES)[number];
@@ -36,7 +37,7 @@ export function buildReviewerConfig(lens: ReviewLens): ScoutConfig {
     buildUserPrompt: buildSpecialistUserPrompt,
     createTools: (cwd, ctx) => [
       createReadTool(cwd),
-      createBashTool(cwd),
+      createReadOnlyBashTool(cwd),
       ...(ctx ? [createFactCheckTool(ctx)] : []),
     ],
   };

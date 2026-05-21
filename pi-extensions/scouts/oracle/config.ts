@@ -6,7 +6,7 @@ import { ORACLE_FAMILY_PARTNERS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
 import { ModelParam } from "../validate.ts";
 import { buildOracleSystemPrompt, buildOracleUserPrompt } from "./prompt.ts";
-import { createReadOnlyBashTool } from "./tools/read-only-bash.ts";
+import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
 
 export const OracleParams = Type.Object({
   query: Type.String({

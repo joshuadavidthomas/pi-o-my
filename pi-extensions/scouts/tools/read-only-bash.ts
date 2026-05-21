@@ -1,11 +1,11 @@
-// Read-only bash tool for the oracle scout.
+// Read-only bash tool for scout agents that must inspect without mutation.
 //
 // Wraps pi's createBashTool but rejects commands that could modify
 // the workspace. Only allows a known set of read-only commands.
 
 import { createBashTool } from "@mariozechner/pi-coding-agent";
 
-// Commands the oracle is allowed to run
+// Commands read-only scouts are allowed to run
 const ALLOWED_COMMANDS = new Set([
   "rg", "fd", "ls", "cat", "wc", "head", "tail", "file", "stat", "nl",
   "find", "tree", "du", "grep", "awk", "sed", "sort", "uniq", "cut",
@@ -73,7 +73,7 @@ export function createReadOnlyBashTool(cwd: string) {
 
       const check = isReadOnly(command);
       if (!check.ok) {
-        throw new Error(`Blocked: ${check.reason}. Oracle operates in read-only mode.`);
+        throw new Error(`Blocked: ${check.reason}. This scout operates in read-only mode.`);
       }
 
       return baseTool.execute(toolCallId, params, signal, onUpdate);

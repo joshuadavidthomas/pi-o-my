@@ -7,7 +7,7 @@ import { Container, Key, Markdown, matchesKey, Spacer, TUI, type Component, type
 
 import type { ScoutDetails } from "../types.ts";
 import { isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
-import { runReview, selectReviewLenses, type ReviewContext, type ReviewLensSelection, type ReviewMode, type ReviewScoutResult } from "./run.ts";
+import { runReview, selectReviewLenses, type ReviewArtifactType, type ReviewContext, type ReviewLensSelection, type ReviewMode, type ReviewScoutResult } from "./run.ts";
 import { REVIEWER_TOOL } from "./tool.ts";
 
 type ReviewLensResult = {
@@ -184,7 +184,7 @@ function defaultContextFor(subcommand: string): ReviewContext {
   return "none";
 }
 
-function artifactTypeFor(subcommand: string): string {
+function artifactTypeFor(subcommand: string): ReviewArtifactType {
   if (subcommand === "repo") return "repository";
   if (subcommand === "diff" || subcommand === "staged") return "diff";
   if (subcommand === "plan") return "plan";

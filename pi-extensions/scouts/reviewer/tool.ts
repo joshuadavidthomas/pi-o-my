@@ -6,7 +6,7 @@ import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
 import { makeErrorResult, ModelParam, validateQuery } from "../validate.ts";
 import { REVIEW_LENSES } from "./config.ts";
-import { normalizeReviewLenses, runReview, type ReviewContext, type ReviewMode } from "./run.ts";
+import { normalizeReviewLenses, REVIEW_ARTIFACT_TYPES, runReview, type ReviewArtifactType, type ReviewContext, type ReviewMode } from "./run.ts";
 
 export const ReviewerParams = Type.Object({
   query: Type.String({
@@ -25,7 +25,7 @@ export const ReviewerParams = Type.Object({
   ),
   artifactType: Type.Optional(
     Type.String({
-      enum: ["diff", "plan", "design", "file", "module", "session", "brief", "other"],
+      enum: [...REVIEW_ARTIFACT_TYPES],
       description: "Type of artifact being reviewed. Helps the reviewer choose evidence rules and scope.",
     }),
   ),
@@ -73,6 +73,12 @@ function reviewContext(value: unknown): ReviewContext {
   return value === "none" || value === "brief" || value === "transcript" ? value : "brief";
 }
 
+function reviewArtifactType(value: unknown): ReviewArtifactType {
+  return typeof value === "string" && (REVIEW_ARTIFACT_TYPES as readonly string[]).includes(value)
+    ? value as ReviewArtifactType
+    : "other";
+}
+
 function titleSuffixForLenses(raw: unknown): string | undefined {
   try {
     const lenses = normalizeReviewLenses(raw);
@@ -110,7 +116,7 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
         lenses,
         query,
         artifact: typeof values.artifact === "string" ? values.artifact.trim() : "",
-        artifactType: String(values.artifactType ?? "unspecified").trim(),
+        artifactType: reviewArtifactType(values.artifactType),
         context: reviewContext(values.context),
         mode: reviewMode(values.mode),
         contextText: typeof values.contextText === "string" ? values.contextText.trim() : "",

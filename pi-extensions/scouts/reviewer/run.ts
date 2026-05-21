@@ -6,6 +6,8 @@ import type { ScoutDetails } from "../types.ts";
 import { buildReviewerConfig, isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
 import { hasResultText, resultText } from "./result.ts";
 
+export const REVIEW_ARTIFACT_TYPES = ["repository", "diff", "plan", "design", "file", "module", "session", "brief", "other"] as const;
+export type ReviewArtifactType = (typeof REVIEW_ARTIFACT_TYPES)[number];
 export type ReviewMode = "notes" | "strict";
 export type ReviewContext = "none" | "brief" | "transcript";
 export type ReviewLensSelection = "all" | ReviewLens;
@@ -24,7 +26,7 @@ export type RunReviewOptions = {
   signal?: AbortSignal;
   lenses: ReviewLens[];
   query: string;
-  artifactType: string;
+  artifactType: ReviewArtifactType;
   context: ReviewContext;
   mode: ReviewMode;
   artifact?: string;

@@ -1,7 +1,8 @@
-import { createBashTool, createReadTool, type ExtensionContext, type ToolDefinition } from "@mariozechner/pi-coding-agent";
+import { createReadTool, type ExtensionContext, type ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 
 import { executeScout } from "../../execute.ts";
+import { createReadOnlyBashTool } from "../../tools/read-only-bash.ts";
 import type { ScoutConfig } from "../../types.ts";
 
 const FACT_CHECK_PROMPT = `# Fact-Check
@@ -98,7 +99,7 @@ const factCheckConfig: ScoutConfig = {
   workload: "fast",
   buildSystemPrompt: () => FACT_CHECK_PROMPT,
   buildUserPrompt: factCheckUserPrompt,
-  createTools: (cwd) => [createReadTool(cwd), createBashTool(cwd)],
+  createTools: (cwd) => [createReadTool(cwd), createReadOnlyBashTool(cwd)],
 };
 
 export function createFactCheckTool(ctx: ExtensionContext): ToolDefinition<typeof FactCheckParams> {
