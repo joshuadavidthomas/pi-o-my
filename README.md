@@ -181,12 +181,6 @@ Detect and eliminate common AI writing tropes from prose. Comprehensive catalog 
 
 Web search and content extraction via Brave Search API.
 
-### [btca](./skills/btca/SKILL.md)
-
-Query codebases semantically using LLMs. Use when asking questions about libraries, frameworks, or source code — searches actual source, not outdated docs.
-
-Wraps the [btca (Better Context App)](https://btca.dev) CLI tool. Covers installation, resource management (git repos and local codebases), model configuration via OpenCode, and includes example configs with common resources like Svelte and Tailwind.
-
 ### [researching-codebases](./skills/researching-codebases/SKILL.md)
 
 Methodical approach to researching unfamiliar codebases using scout subagents.
