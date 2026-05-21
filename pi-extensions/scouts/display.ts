@@ -70,6 +70,12 @@ export function extractDisplayItems(messages: readonly AgentMessage[]): DisplayI
 // Format a tool call for inline display
 export function formatToolCallParts(name: string, args: Record<string, unknown>): { label: string; summary: string } {
   switch (name) {
+    case "reviewer": {
+      const lenses = Array.isArray(args.lenses) ? args.lenses.filter((lens): lens is string => typeof lens === "string") : [];
+      const label = lenses.length === 1 ? `reviewer ${lenses[0]}` : "reviewer";
+      const query = typeof args.query === "string" ? args.query.trim() : "";
+      return { label, summary: shortenPaths(query) };
+    }
     case "factCheck": {
       const target = typeof args.target === "string" && args.target.trim() ? args.target.trim() : "draft";
       const draft = typeof args.draft === "string" ? args.draft.trim() : "";

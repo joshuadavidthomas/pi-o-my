@@ -3,7 +3,7 @@ import { Type } from "typebox";
 
 import { executeScout } from "../execute.ts";
 import { ScoutCall, ScoutResult } from "../render.ts";
-import { trackScoutToolCall } from "../state.ts";
+import { computeOverallStatus, trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
 import { ModelParam, validateQuery } from "../validate.ts";
 import { buildReviewerConfig, type ReviewLens } from "./config.ts";
@@ -104,6 +104,60 @@ function buildConfig(lens: ReviewLens, model?: unknown) {
   return config;
 }
 
+type LensExecution = {
+  lens: ReviewLens;
+  result: Awaited<ReturnType<typeof executeScout>>;
+  output: string;
+};
+
+function aggregateReviewerDetails(query: string, executions: LensExecution[]): ScoutDetails {
+  const sourceRuns = executions.map((execution) => execution.result.details.runs[0]).filter((run): run is ScoutDetails["runs"][number] => run !== undefined);
+  const status = computeOverallStatus(sourceRuns);
+  const now = Date.now();
+  const startedAt = sourceRuns.length > 0 ? Math.min(...sourceRuns.map((run) => run.startedAt)) : now;
+  const endedTimes = sourceRuns.map((run) => run.endedAt).filter((time): time is number => time !== undefined);
+  const endedAt = status === "running" || endedTimes.length === 0 ? undefined : Math.max(...endedTimes);
+  const provider = sameValue(executions.map((execution) => execution.result.details.subagentProvider));
+  const modelId = sameValue(executions.map((execution) => execution.result.details.subagentModelId));
+  const summaryText = executions.map((execution) => `# ${execution.lens}\n\n${execution.output}`).join("\n\n");
+
+  return {
+    mode: "single",
+    status,
+    subagentProvider: provider,
+    subagentModelId: modelId,
+    runs: [{
+      status,
+      query,
+      turns: sourceRuns.reduce((sum, run) => sum + run.turns, 0),
+      displayItems: [
+        ...executions.map((execution) => ({
+          type: "tool" as const,
+          name: "reviewer",
+          args: {
+            query: execution.result.details.runs[0]?.query ?? `${execution.lens} review`,
+            lenses: [execution.lens],
+          },
+          toolCallId: `reviewer-${execution.lens}`,
+          result: execution.output,
+          isError: execution.result.isError,
+          nestedScout: execution.result.details,
+        })),
+        { type: "text" as const, text: summaryText },
+      ],
+      summaryText,
+      startedAt,
+      endedAt,
+    }],
+  };
+}
+
+function sameValue(values: Array<string | undefined>): string | undefined {
+  const present = values.filter((value): value is string => value !== undefined);
+  if (present.length === 0) return undefined;
+  return present.every((value) => value === present[0]) ? present[0] : undefined;
+}
+
 export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> = {
   name: "reviewer",
   label: "Reviewer",
@@ -117,8 +171,8 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
 
     const finishTracking = trackScoutToolCall(toolCallId);
     try {
-      const outputs = [] as string[];
-      let details: ScoutDetails | undefined;
+      const executions: LensExecution[] = [];
+      const query = String((params as Record<string, unknown>).query ?? "").trim();
 
       for (const lens of requestedLenses(params as Record<string, unknown>)) {
         const config = buildConfig(lens, (params as Record<string, unknown>).model);
@@ -126,21 +180,21 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
         const result = await executeScout(
           config,
           {
-            query: `Reviewer ${lens}: ${String((params as Record<string, unknown>).query ?? "").trim()}`,
+            query: `Reviewer ${lens}: ${query}`,
             task: taskFor(lens, params as Record<string, unknown>),
           },
           signal,
           undefined,
           ctx,
         );
-        details ??= result.details;
-        outputs.push(`# ${lens}\n\n${resultText(result)}`);
+        executions.push({ lens, result, output: resultText(result) });
       }
 
+      const output = executions.map((execution) => `# ${execution.lens}\n\n${execution.output}`).join("\n\n");
       return {
-        content: [{ type: "text", text: outputs.join("\n\n") }],
-        details: details!,
-        isError: false,
+        content: [{ type: "text", text: output }],
+        details: aggregateReviewerDetails(query, executions),
+        isError: executions.some((execution) => execution.result.isError),
       };
     } finally {
       finishTracking();

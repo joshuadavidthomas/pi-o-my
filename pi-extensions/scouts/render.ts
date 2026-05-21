@@ -43,7 +43,7 @@ const COLLAPSED_SUMMARY_PREVIEW_LINES = 6;
 const PARALLEL_COLLAPSED_TOOL_PREVIEW = 3;
 const PARALLEL_COLLAPSED_SUMMARY_PREVIEW_LINES = 1;
 
-function getRunningSpinner(theme: Theme, frameIndex = 0): string {
+function getRunningSpinner(theme: Theme, frameIndex = Math.floor(Date.now() / RUNNING_SPINNER_INTERVAL_MS)): string {
   const frame = RUNNING_SPINNER_FRAMES[frameIndex % RUNNING_SPINNER_FRAMES.length] ?? RUNNING_SPINNER_FRAMES[0]!;
   return theme.fg("warning", frame);
 }
@@ -200,6 +200,7 @@ function formatNestedScout(parentTool: Extract<DisplayItem, { type: "tool" }>, d
   const lines = [`↳ ${label} ${theme.fg("dim", model)}`];
   if (summary) lines.push(`  ${theme.fg("dim", truncateVisible(summary, 88))}`);
 
+  const toolStartIndex = lines.length;
   const tools = run.displayItems.filter((item): item is Extract<DisplayItem, { type: "tool" }> => item.type === "tool");
   const visibleTools = tools.slice(-3);
   for (const tool of visibleTools) {
@@ -208,7 +209,7 @@ function formatNestedScout(parentTool: Extract<DisplayItem, { type: "tool" }>, d
     lines.push(`  ${icon} ${label}${summary ? ` ${theme.fg("dim", truncateVisible(summary, 72))}` : ""}`);
   }
   if (tools.length > visibleTools.length) {
-    lines.splice(1, 0, `  … ${tools.length - visibleTools.length} earlier tool calls`);
+    lines.splice(toolStartIndex, 0, `  … ${tools.length - visibleTools.length} earlier tool calls`);
   }
 
   return lines.join("\n");

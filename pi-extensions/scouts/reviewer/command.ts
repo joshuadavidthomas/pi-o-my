@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { getMarkdownTheme, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext, type MessageRenderOptions, type Theme } from "@mariozechner/pi-coding-agent";
 import { Container, Key, Markdown, matchesKey, Spacer, TUI, type Component, type Terminal } from "@mariozechner/pi-tui";
 
@@ -289,7 +289,18 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
     const text = parsed.rest.join(" ").trim();
     if (!text) throw new Error("Usage: /review boundary <description-or-path>");
     const possiblePath = resolve(cwd, text);
-    if (existsSync(possiblePath)) return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
+    if (existsSync(possiblePath)) {
+      const pathStat = await stat(possiblePath);
+      if (pathStat.isDirectory()) {
+        const repoPath = relative(cwd, possiblePath) || ".";
+        const files = await git(cwd, ["ls-files", "--", repoPath]);
+        return {
+          subject: `Review the boundary at ${text}. It is a directory, so inspect the listed files with tools before making claims.\n\nTracked files in boundary:\n${files.trim() || "(no tracked files)"}`,
+          subjectLabel: text,
+        };
+      }
+      return { subject: await readFile(possiblePath, "utf8"), subjectLabel: text };
+    }
     return { subject: text, subjectLabel: "inline boundary description" };
   }
 
@@ -386,14 +397,31 @@ function reviewerToolArgs(lens: ReviewLens, result: ScoutRenderResult): Record<s
   };
 }
 
-function reviewerToolComponent(
+function updateReviewerToolComponent(
+  component: ToolExecutionComponent,
+  lens: ReviewLens,
+  result: ScoutRenderResult,
+  expanded: boolean,
+): void {
+  component.updateArgs(reviewerToolArgs(lens, result));
+  component.setExpanded(expanded);
+  component.updateResult(
+    {
+      content: result.content,
+      details: result.details,
+      isError: result.isError,
+    },
+    result.details.status === "running",
+  );
+}
+
+function createReviewerToolComponent(
   lens: ReviewLens,
   result: ScoutRenderResult,
   tui: TUI,
   cwd: string,
-  isPartial: boolean,
   expanded: boolean,
-): Component {
+): ToolExecutionComponent {
   const component = new ToolExecutionComponent(
     "reviewer",
     `review-${lens}`,
@@ -405,40 +433,81 @@ function reviewerToolComponent(
   );
   component.markExecutionStarted();
   component.setArgsComplete();
-  component.setExpanded(expanded);
-  component.updateResult(
-    {
-      content: result.content,
-      details: result.details,
-      isError: result.isError,
-    },
-    isPartial,
-  );
-  return new StripLeadingSpacer(component);
+  updateReviewerToolComponent(component, lens, result, expanded);
+  return component;
+}
+
+function reviewerToolComponent(
+  lens: ReviewLens,
+  result: ScoutRenderResult,
+  tui: TUI,
+  cwd: string,
+  expanded: boolean,
+): Component {
+  return new StripLeadingSpacer(createReviewerToolComponent(lens, result, tui, cwd, expanded));
+}
+
+class LiveReviewToolComponent extends StripLeadingSpacer {
+  private readonly toolComponent: ToolExecutionComponent;
+
+  constructor(
+    private readonly lens: ReviewLens,
+    result: ScoutRenderResult,
+    tui: TUI,
+    cwd: string,
+    expanded: boolean,
+  ) {
+    const toolComponent = createReviewerToolComponent(lens, result, tui, cwd, expanded);
+    super(toolComponent);
+    this.toolComponent = toolComponent;
+  }
+
+  update(result: ScoutRenderResult, expanded: boolean): void {
+    updateReviewerToolComponent(this.toolComponent, this.lens, result, expanded);
+  }
+}
+
+class LiveReviewWidget extends Container {
+  private readonly tools = new Map<ReviewLens, LiveReviewToolComponent>();
+
+  update(results: ReviewLensResult[], expanded: boolean, tui: TUI, cwd: string): void {
+    const nextLenses = new Set<ReviewLens>();
+    this.clear();
+
+    for (let index = 0; index < results.length; index += 1) {
+      const item = results[index]!;
+      nextLenses.add(item.lens);
+
+      let component = this.tools.get(item.lens);
+      if (!component) {
+        component = new LiveReviewToolComponent(item.lens, item.result, tui, cwd, expanded);
+        this.tools.set(item.lens, component);
+      } else {
+        component.update(item.result, expanded);
+      }
+
+      if (index > 0) this.addChild(new Spacer(1));
+      this.addChild(component);
+    }
+
+    for (const lens of [...this.tools.keys()]) {
+      if (!nextLenses.has(lens)) this.tools.delete(lens);
+    }
+  }
 }
 
 function setLiveReviewWidget(
   ctx: ExtensionCommandContext,
   results: ReviewLensResult[],
   expanded: boolean,
+  liveWidgetRef: { current?: LiveReviewWidget },
 ): void {
   if (!ctx.hasUI) return;
 
   ctx.ui.setWidget("review", (tui) => {
-    const container = new Container();
-    for (let index = 0; index < results.length; index += 1) {
-      const item = results[index]!;
-      if (index > 0) container.addChild(new Spacer(1));
-      container.addChild(reviewerToolComponent(
-        item.lens,
-        item.result,
-        tui,
-        ctx.cwd,
-        item.result.details.status === "running",
-        expanded,
-      ));
-    }
-    return container;
+    liveWidgetRef.current ??= new LiveReviewWidget();
+    liveWidgetRef.current.update(results, expanded, tui, ctx.cwd);
+    return liveWidgetRef.current;
   });
 }
 
@@ -503,7 +572,7 @@ class ReviewResultComponent extends Container {
     for (let index = 0; index < details.results.length; index += 1) {
       const item = details.results[index]!;
       if (index > 0) this.addChild(new Spacer(1));
-      const component = reviewerToolComponent(item.lens, item.result, stubTui, details.cwd, options.expanded ? false : item.result.details.status === "running", options.expanded);
+      const component = reviewerToolComponent(item.lens, item.result, stubTui, details.cwd, options.expanded);
       this.addChild(component);
     }
   }
@@ -559,13 +628,14 @@ export function registerReviewCommand(pi: ExtensionAPI) {
         let usefulOutputCount = 0;
         const finalResults = new Map<ReviewLens, Awaited<ReturnType<typeof executeScout>>>();
         const liveResults = new Map<ReviewLens, ScoutRenderResult>();
+        const liveWidgetRef: { current?: LiveReviewWidget } = {};
         const publishLiveResults = () => {
           setLiveReviewWidget(ctx, lenses
             .map((lens) => {
               const result = liveResults.get(lens);
               return result ? { lens, result } : undefined;
             })
-            .filter((item): item is ReviewLensResult => item !== undefined), liveExpanded);
+            .filter((item): item is ReviewLensResult => item !== undefined), liveExpanded, liveWidgetRef);
         };
         republishLiveResults = publishLiveResults;
 
@@ -601,6 +671,7 @@ export function registerReviewCommand(pi: ExtensionAPI) {
           publishLiveResults();
         }));
 
+        liveWidgetRef.current = undefined;
         clearLiveReviewWidget(ctx);
         for (const lens of lenses) {
           const result = finalResults.get(lens);
