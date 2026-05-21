@@ -9,7 +9,7 @@ import { ToolBridge } from "./tools/bridge.js";
 const SESSION_ENTRY_TYPE = "claude-agent-sdk-session";
 const EVENT_ENTRY_TYPE = "claude-agent-sdk-event";
 
-export type SessionManager = Pick<PiSessionManager, "getBranch" | "getEntries" | "getSessionId" | "getLeafId">;
+export type SessionManager = Pick<PiSessionManager, "getBranch" | "getEntries" | "getSessionId" | "getLeafId" | "getSessionFile">;
 
 export interface SessionContinuity {
   sdkSessionId: string | null;
@@ -282,6 +282,10 @@ export class ClaudeSession {
 
   currentTurn(): ClaudeTurn | undefined {
     return this.activeTurn ?? undefined;
+  }
+
+  hasPersistentSession(): boolean {
+    return Boolean(this.sessionManager?.getSessionFile());
   }
 
   liveQuery(): SdkQuery | undefined {
