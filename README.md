@@ -13,7 +13,6 @@ This installs everything:
 | What | Where |
 |------|-------|
 | Pi extensions | `~/.pi/agent/extensions/` (symlinked) |
-| [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) config | `~/.config/dcg/` (symlinked) |
 
 ## Pi Extensions
 
@@ -170,22 +169,6 @@ Starship-style custom footer with model context, git status, costs, and token st
 #### [system-prompt-heading-levels](./pi-extensions/system-prompt-heading-levels.ts)
 
 Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings nest under Pi's system prompt sections instead of competing with them.
-
-## Tools
-
-### [dcg](./dcg/)
-
-Custom packs for [dcg (Destructive Command Guard)](https://github.com/Dicklesworthstone/destructive_command_guard).
-
-> **Note:** Custom pack loading is not yet functional in dcg. The `ExternalPackLoader` is implemented but not wired up. See [issue #24](https://github.com/Dicklesworthstone/destructive_command_guard/issues/24).
-
-#### [devtools-noblock](./dcg/devtools-noblock.yaml)
-
-Prevents agents from running blocking dev server commands that hang indefinitely.
-
-Blocks commands like `npm run dev`, `vite`, `python manage.py runserver`, `docker compose up` (without `-d`), `cargo watch`, and various `just` recipes that start attached servers or follow logs.
-
-When blocked, the agent is instructed to ask if the server is already running, and if not, offer to run it in a tmux session.
 
 ## Acknowledgements
 

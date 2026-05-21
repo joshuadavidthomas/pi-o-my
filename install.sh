@@ -85,25 +85,3 @@ if [[ -d "$PI_EXTENSIONS_SRC" ]]; then
         echo "Linked $ext_name -> $PI_EXTENSIONS_DIR/"
     done
 fi
-
-# dcg config and packs
-DCG_DIR="$HOME/.config/dcg"
-DCG_SRC="$REPO_DIR/dcg"
-
-if [[ -d "$DCG_SRC" ]]; then
-    mkdir -p "$DCG_DIR/packs"
-
-    # Config
-    if [[ -f "$DCG_SRC/config.toml" ]]; then
-        ln -sfn "$DCG_SRC/config.toml" "$DCG_DIR/config.toml"
-        echo "Linked config.toml -> $DCG_DIR/"
-    fi
-
-    # Packs
-    for pack in "$DCG_SRC"/*.yaml; do
-        [[ -e "$pack" ]] || continue
-        pack_name=$(basename "$pack")
-        ln -sfn "$pack" "$DCG_DIR/packs/$pack_name"
-        echo "Linked $pack_name -> $DCG_DIR/packs/"
-    done
-fi
