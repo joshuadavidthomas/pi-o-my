@@ -156,7 +156,7 @@ export function invalidInvocationText(cwd: string, parsed: ParsedArgs): string {
 }
 
 export function helpText(): string {
-  return `Structural review runs reviewer-local Hickey, Lowy, Grug, Beck, Muratori, and Lamport lenses as isolated scouts.
+  return `Structural review runs reviewer-local Hickey, Lowy, Grug, Beck, Muratori, Lamport, and Ousterhout lenses as isolated scouts.
 
 Hickey asks: is this structurally simple?
 
@@ -169,6 +169,8 @@ Beck asks: what smallest tidy makes the intended change easy?
 Muratori asks: does this keep the actual work visible until real semantics are worth compressing?
 
 Lamport asks: what precise state-machine model preserves the required properties?
+
+Ousterhout asks: does this design hide the right knowledge behind deep, obvious abstractions?
 
 How to use it:
 - Current repository: /review or /review repo
@@ -199,5 +201,6 @@ Examples:
 /review boundary src/billing --lowy
 /review diff --grug
 /review diff --muratori
-/review plan docs/agents/plugin-system/plan.md --lamport`;
+/review plan docs/agents/plugin-system/plan.md --lamport
+/review file src/api/client.ts --ousterhout`;
 }

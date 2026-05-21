@@ -8,7 +8,7 @@ import type { ScoutConfig } from "../types.ts";
 import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "../specialist/prompt.ts";
 import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
 
-export const REVIEW_LENSES = ["hickey", "lowy", "grug", "beck", "muratori", "lamport"] as const;
+export const REVIEW_LENSES = ["hickey", "lowy", "grug", "beck", "muratori", "lamport", "ousterhout"] as const;
 export type ReviewLens = (typeof REVIEW_LENSES)[number];
 
 export function isReviewLens(value: unknown): value is ReviewLens {

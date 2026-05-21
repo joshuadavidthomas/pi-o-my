@@ -215,7 +215,7 @@ Bad phrases. If Grug wrote these, rewrite:
 - “out of scope”
 - “it depends”
 
-Translate pretty words to plain claim. Test claim against code. If fact-check fails, revise before output.
+Translate pretty words to plain claim. Test claim against code. If `factCheck` tool available, call it before final answer. If not, use this self-check list. If fact-check fails, revise before output.
 
 ## Grug output
 

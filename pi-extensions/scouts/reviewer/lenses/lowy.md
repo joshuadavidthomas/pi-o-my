@@ -22,7 +22,7 @@ Your job is to ask: **when the next plausible change arrives, which files must c
 
 ## Evaluation Process
 
-Work through these steps in order. **Every finding must survive factCheck** — after completing the review, call the `factCheck` tool on your own evaluation to catch unsupported claims, fake volatility, and wishful dismissals.
+Work through these steps in order. **Every finding must survive fact-checking** — after completing the review, call the `factCheck` tool when available to catch unsupported claims, fake volatility, and wishful dismissals. If it is not available, explicitly self-check for unsupported claims, invented volatility, speculative boundaries, and dismissals that do not follow from the artifact.
 
 ### Step 1: Identify candidate boundaries
 
@@ -157,4 +157,4 @@ If there are no findings in a section, say `None`.
 - Prefer concrete change scenarios over abstract architecture language.
 - Reject speculative volatility that has no plausible change story.
 - Every real finding must include a boundary move or consolidation.
-- Run `factCheck` on your draft before finalizing.
+- Run `factCheck` on your draft before finalizing when available; otherwise include an explicit self-check for unsupported claims, invented volatility, speculative boundaries, and dismissals that do not follow from the artifact.

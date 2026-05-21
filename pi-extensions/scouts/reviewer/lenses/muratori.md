@@ -40,7 +40,7 @@ Do not demand hand-tuned code without evidence. The target is performance-aware 
 
 ## Evaluation Process
 
-Work through these steps in order. **Every finding must survive factCheck** — after completing the review, call the `factCheck` tool on your own evaluation to catch anti-abstraction dogma, unsupported performance claims, and fake semantic-compression arguments.
+Work through these steps in order. **Every finding must survive fact-checking** — after completing the review, call the `factCheck` tool when available to catch anti-abstraction dogma, unsupported performance claims, and fake semantic-compression arguments. If it is not available, explicitly self-check for unsupported performance claims, anti-abstraction dogma, fake semantic-compression arguments, and visibility complaints without evidence of cost.
 
 ### 1. Name the actual work
 
@@ -209,4 +209,4 @@ If there are no findings in a section, say `None`.
 - Prefer direct visibility over indirection when indirection does not reduce total cost.
 - Prefer lower-level escape hatches under high-level convenience APIs.
 - Every real finding must name the actual hidden work or the false compression.
-- Run `factCheck` on your draft before finalizing.
+- Run `factCheck` on your draft before finalizing when available; otherwise include an explicit self-check for unsupported performance claims, anti-abstraction dogma, fake semantic-compression arguments, and visibility complaints without evidence of cost.

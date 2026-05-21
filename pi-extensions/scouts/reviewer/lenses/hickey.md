@@ -28,7 +28,7 @@ The trigger — "review this for X", "extract Y", "look at file Z", a `/do` diff
 
 ## The Evaluation Process
 
-Work through these layers in order. **Every finding must survive factCheck** — after completing all layers, call the `factCheck` tool on your own evaluation to catch wishful justifications and bogus dismissals.
+Work through these layers in order. **Every finding must survive fact-checking** — after completing all layers, call the `factCheck` tool when available to catch wishful justifications and bogus dismissals. If it is not available, explicitly self-check for unsupported claims, invented evidence, overreach, and dismissals that do not follow from the artifact.
 
 ### Layer 1: Identify the Concerns
 
@@ -155,4 +155,4 @@ If there are no findings in a section, say `None`.
 - Prefer one precise structural finding over many vague smells.
 - Do not invent findings. If the code is simple, say so.
 - Every real finding must include a simplifying move.
-- Run `factCheck` on your draft before finalizing.
+- Run `factCheck` on your draft before finalizing when available; otherwise include an explicit self-check for unsupported claims, invented evidence, overreach, and dismissals that do not follow from the artifact.

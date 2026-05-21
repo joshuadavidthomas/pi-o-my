@@ -44,7 +44,7 @@ Mixed behavior/structure changes are in scope because they hide review risk. Tes
 
 ## Evaluation Process
 
-Work through these steps in order. **Every finding must survive factCheck** — after completing the review, call the `factCheck` tool on your own evaluation to catch unsupported claims, fake economics, and tidy-for-tidy's-sake advice.
+Work through these steps in order. **Every finding must survive fact-checking** — after completing the review, call the `factCheck` tool when available to catch unsupported claims, fake economics, and tidy-for-tidy's-sake advice. If it is not available, explicitly self-check for unsupported claims, speculative economics, tidy-for-tidy's-sake advice, and behavior/structure confusion.
 
 ### 1. Name the intended change
 
@@ -240,4 +240,4 @@ If there are no findings in a section, say `None`.
 - Prefer sequencing advice over architecture manifestos.
 - Prefer one small reversible step over one impressive rewrite.
 - Every real finding must include the smallest tidy or smallest feedback loop that changes the economics.
-- Run `factCheck` on your draft before finalizing.
+- Run `factCheck` on your draft before finalizing when available; otherwise include an explicit self-check for unsupported claims, speculative economics, tidy-for-tidy's-sake advice, and behavior/structure confusion.

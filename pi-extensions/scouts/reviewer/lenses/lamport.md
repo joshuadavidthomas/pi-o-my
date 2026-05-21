@@ -50,7 +50,7 @@ Do not require formal notation when direct prose, tables, types, or tests can ma
 
 ## Evaluation Process
 
-Work through these steps in order. **Every finding must survive factCheck** — after completing the review, call the `factCheck` tool on your own evaluation to catch over-formalizing, unsupported counterexamples, and vague specification demands.
+Work through these steps in order. **Every finding must survive fact-checking** — after completing the review, call the `factCheck` tool when available to catch over-formalizing, unsupported counterexamples, and vague specification demands. If it is not available, explicitly self-check for invented interleavings, unsupported counterexamples, liveness claims without progress promises, and specification demands not justified by behavior precision needs.
 
 ### 1. Extract the behavior model
 
@@ -255,7 +255,7 @@ If the lens is not applicable, use the Applicability section to say why, then pu
 - Prefer precise small models over broad architecture prose.
 - Prefer invariants, transition tables, state diagrams, model-like tests, or type states that prove the claim being made.
 - Every real finding must name the model element and the property at risk.
-- Run `factCheck` on your draft before finalizing.
+- Run `factCheck` on your draft before finalizing when available; otherwise include an explicit self-check for invented interleavings, unsupported counterexamples, liveness claims without progress promises, and specification demands not justified by behavior precision needs.
 
 ## Relationship to Other Lenses
 
