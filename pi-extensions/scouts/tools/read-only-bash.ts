@@ -9,9 +9,13 @@ import { createBashTool } from "@mariozechner/pi-coding-agent";
 const ALLOWED_COMMANDS = new Set([
   "rg", "fd", "ls", "cat", "wc", "head", "tail", "file", "stat", "nl",
   "find", "tree", "du", "grep", "awk", "sort", "uniq", "cut",
-  "tr", "diff", "comm", "echo", "printf", "test",
+  "tr", "diff", "comm", "echo", "printf", "test", "git",
   "basename", "dirname", "realpath", "readlink",
 ]);
+
+const ALLOWED_GIT_SUBCOMMANDS = new Set(["diff", "status", "ls-files", "rev-parse", "show", "log"]);
+const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set(["-C", "--git-dir", "--work-tree", "--namespace"]);
+const BLOCKED_GIT_OPTIONS = [/^--output(?:=|$)/, /^--ext-diff$/, /^--external-diff$/];
 
 // Patterns that indicate mutation regardless of the command
 const MUTATION_PATTERNS = [
@@ -32,7 +36,44 @@ function extractLeadCommand(command: string): string | null {
   return match?.[1] ?? null;
 }
 
-function isReadOnly(command: string): { ok: boolean; reason?: string } {
+function words(command: string): string[] {
+  return command.trim().split(/\s+/).filter(Boolean);
+}
+
+function gitSubcommand(command: string): string | undefined {
+  const tokens = words(command);
+  if (tokens[0] !== "git") return undefined;
+
+  for (let i = 1; i < tokens.length; i += 1) {
+    const token = tokens[i]!;
+    if (token === "--") return undefined;
+    if (GIT_GLOBAL_OPTIONS_WITH_VALUE.has(token)) {
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("-C") && token.length > 2) continue;
+    if (token.startsWith("--git-dir=") || token.startsWith("--work-tree=") || token.startsWith("--namespace=")) continue;
+    if (token.startsWith("-")) continue;
+    return token;
+  }
+
+  return undefined;
+}
+
+function validateGitCommand(command: string): { ok: boolean; reason?: string } {
+  const tokens = words(command);
+  const blockedOption = tokens.find((token) => BLOCKED_GIT_OPTIONS.some((pattern) => pattern.test(token)));
+  if (blockedOption) return { ok: false, reason: `Git option '${blockedOption}' is not allowed in read-only mode` };
+
+  const subcommand = gitSubcommand(command);
+  if (!subcommand) return { ok: false, reason: "Git command is missing a read-only subcommand" };
+  if (!ALLOWED_GIT_SUBCOMMANDS.has(subcommand)) {
+    return { ok: false, reason: `Git subcommand '${subcommand}' is not in the read-only allowlist` };
+  }
+  return { ok: true };
+}
+
+export function isReadOnlyCommand(command: string): { ok: boolean; reason?: string } {
   for (const pattern of MUTATION_PATTERNS) {
     if (pattern.test(command)) {
       return { ok: false, reason: `Command matches blocked pattern: ${pattern.source}` };
@@ -50,8 +91,13 @@ function isReadOnly(command: string): { ok: boolean; reason?: string } {
     const parts = inner.split(/\s*(?:&&|\|\|)\s*/);
     for (const part of parts) {
       const partLead = extractLeadCommand(part);
-      if (partLead && !ALLOWED_COMMANDS.has(partLead)) {
+      if (!partLead) continue;
+      if (!ALLOWED_COMMANDS.has(partLead)) {
         return { ok: false, reason: `Command '${partLead}' is not in the read-only allowlist` };
+      }
+      if (partLead === "git") {
+        const gitCheck = validateGitCommand(part);
+        if (!gitCheck.ok) return gitCheck;
       }
     }
   }
@@ -65,13 +111,13 @@ export function createReadOnlyBashTool(cwd: string) {
   return {
     ...baseTool,
     name: "bash",
-    description: "Execute read-only bash commands (rg, fd, ls, cat, wc, head, tail, file, stat, nl, find, tree, grep, awk, sort, uniq, cut, diff). No writes, installs, or mutations allowed.",
+    description: "Execute read-only bash commands (rg, fd, ls, cat, wc, head, tail, file, stat, nl, find, tree, grep, awk, sort, uniq, cut, diff, safe git reads). No writes, installs, or mutations allowed.",
 
     async execute(...args: Parameters<typeof baseTool.execute>) {
       const [toolCallId, params, signal, onUpdate] = args;
       const command = typeof params.command === "string" ? params.command : "";
 
-      const check = isReadOnly(command);
+      const check = isReadOnlyCommand(command);
       if (!check.ok) {
         throw new Error(`Blocked: ${check.reason}. This scout operates in read-only mode.`);
       }

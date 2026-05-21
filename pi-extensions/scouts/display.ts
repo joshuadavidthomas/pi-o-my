@@ -77,8 +77,8 @@ export function formatToolCallParts(name: string, args: Record<string, unknown>)
           ? args.lenses[0]
           : undefined;
       const label = lens ? `reviewer ${lens}` : "reviewer";
-      const query = typeof args.query === "string" ? args.query.trim() : "";
-      return { label, summary: shortenPaths(query) };
+      const query = typeof args.query === "string" ? args.query : "";
+      return { label, summary: summarize(query) };
     }
     case "factCheck": {
       const target = typeof args.target === "string" && args.target.trim() ? args.target.trim() : "draft";
@@ -86,10 +86,10 @@ export function formatToolCallParts(name: string, args: Record<string, unknown>)
       const summary = draft
         ? `${target}: ${draft.split("\n")[0]}`
         : target;
-      return { label: "factCheck", summary: shortenPaths(summary) };
+      return { label: "factCheck", summary: summarize(summary) };
     }
     case "bash": {
-      const cmd = shortenPaths(((args.command as string) || "").trim());
+      const cmd = summarize(((args.command as string) || ""));
       return { label: "bash", summary: cmd };
     }
     case "read": {
@@ -102,7 +102,7 @@ export function formatToolCallParts(name: string, args: Record<string, unknown>)
       const previewKeys = ["command", "path", "pattern", "query", "url", "task"];
       for (const key of previewKeys) {
         if (args[key] && typeof args[key] === "string") {
-          const val = shortenPaths(args[key] as string);
+          const val = summarize(args[key] as string);
           return { label: name, summary: val };
         }
       }
@@ -137,6 +137,10 @@ function shortenPath(p: string): string {
   const home = process.env.HOME;
   if (home && p.startsWith(home)) return `~${p.slice(home.length)}`;
   return p;
+}
+
+function summarize(s: string): string {
+  return shortenPaths(s.replace(/\s+/g, " ").trim());
 }
 
 function shortenPaths(s: string): string {

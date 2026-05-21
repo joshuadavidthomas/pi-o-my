@@ -6,19 +6,31 @@ function primaryText(result: ReviewScoutResult): string {
   return result.content?.find((item) => item.type === "text")?.text?.trim() ?? "";
 }
 
-export function hasResultText(result: ReviewScoutResult): boolean {
-  if (result.details.status === "running") return false;
+function summaryText(result: ReviewScoutResult): string {
+  return result.details.runs[0]?.summaryText?.trim() ?? "";
+}
 
-  const summary = result.details.runs[0]?.summaryText?.trim();
-  if (summary !== undefined) return summary !== "" && summary !== "(no output)" && summary !== "(searching...)";
-
-  const text = primaryText(result);
+function isUsableText(text: string): boolean {
   return text !== "" && text !== "(no output)" && text !== "(searching...)";
 }
 
+function outputText(result: ReviewScoutResult): string {
+  if (result.details.status === "running") return "";
+
+  const primary = primaryText(result);
+  if (isUsableText(primary)) return primary;
+
+  const summary = summaryText(result);
+  return isUsableText(summary) ? summary : "";
+}
+
+export function hasResultText(result: ReviewScoutResult): boolean {
+  return result.details.status !== "running" && outputText(result) !== "";
+}
+
 export function resultText(result: ReviewScoutResult): string {
-  const text = primaryText(result);
-  if (hasResultText(result)) return text;
+  const text = outputText(result);
+  if (text) return text;
 
   const run = result.details.runs[0];
   const model = result.details.subagentProvider && result.details.subagentModelId

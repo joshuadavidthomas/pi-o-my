@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 
 import { executeScout } from "../execute.ts";
+import { createErrorScoutDetails } from "../state.ts";
 import { buildReviewerConfig, REVIEW_LENSES, type ReviewLens } from "./config.ts";
 import { hasResultText, resultText } from "./result.ts";
 
@@ -73,7 +74,7 @@ export async function runReviewLens(options: RunReviewLensOptions): Promise<Revi
   const result = await executeScout(
     buildConfig(options.lens, options.model),
     {
-      query: `Reviewer ${options.lens}: ${options.query}`,
+      query: reviewLensQuery(options.lens, options.query),
       task,
     },
     options.signal,
@@ -88,7 +89,7 @@ export async function runReview(options: RunReviewOptions): Promise<RunReviewRes
     ...options,
     lens,
     onUpdate: (update) => options.onUpdate?.(lens, update),
-  })));
+  }).catch((error) => createFailedLensExecution(lens, options.query, error))));
 
   const output = executions.map((execution) => `# ${execution.lens}\n\n${execution.output}`).join("\n\n");
   return {
@@ -97,6 +98,10 @@ export async function runReview(options: RunReviewOptions): Promise<RunReviewRes
     isError: executions.some((execution) => execution.result.isError),
     hasText: executions.some((execution) => execution.hasText),
   };
+}
+
+function reviewLensQuery(lens: ReviewLens, query: string): string {
+  return `Reviewer ${lens}: ${query}`;
 }
 
 function buildConfig(lens: ReviewLens, model?: unknown) {
@@ -109,4 +114,13 @@ function buildConfig(lens: ReviewLens, model?: unknown) {
 
 function createReviewLensExecution(lens: ReviewLens, result: ReviewScoutResult): ReviewLensExecution {
   return { lens, result, output: resultText(result), hasText: hasResultText(result) };
+}
+
+function createFailedLensExecution(lens: ReviewLens, query: string, error: unknown): ReviewLensExecution {
+  const message = error instanceof Error ? error.message : String(error);
+  return createReviewLensExecution(lens, {
+    content: [{ type: "text", text: message }],
+    details: createErrorScoutDetails(reviewLensQuery(lens, query), message),
+    isError: true,
+  });
 }

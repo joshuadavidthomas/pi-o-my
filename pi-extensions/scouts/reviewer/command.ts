@@ -168,6 +168,29 @@ async function git(cwd: string, args: string[]): Promise<string> {
   });
 }
 
+async function tryGit(cwd: string, args: string[]): Promise<string | undefined> {
+  try {
+    return await git(cwd, args);
+  } catch {
+    return undefined;
+  }
+}
+
+async function gitRefExists(cwd: string, ref: string): Promise<boolean> {
+  return await tryGit(cwd, ["rev-parse", "--verify", "--quiet", ref]) !== undefined;
+}
+
+async function defaultDiffBase(cwd: string): Promise<string> {
+  const upstream = (await tryGit(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]))?.trim();
+  if (upstream) return upstream;
+
+  for (const candidate of ["main", "master"]) {
+    if (await gitRefExists(cwd, candidate)) return candidate;
+  }
+
+  throw new Error("Could not determine a diff base. Pass /review diff --base <ref>.");
+}
+
 async function optionalRepoConfig(cwd: string): Promise<string> {
   const candidates = [join(cwd, ".pi", "review.md"), join(cwd, ".review-lenses.md")];
   for (const candidate of candidates) {
@@ -276,7 +299,7 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
   }
 
   if (parsed.subcommand === "diff") {
-    const base = parsed.base ?? parsed.rest[0] ?? "origin/HEAD";
+    const base = parsed.base ?? parsed.rest[0] ?? await defaultDiffBase(cwd);
     const range = base.includes("...") || base.includes("..") ? base : `${base}...HEAD`;
     return { subject: await git(cwd, ["diff", range]), subjectLabel: `git diff ${range}` };
   }
@@ -297,9 +320,12 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
       const pathStat = await stat(possiblePath);
       if (pathStat.isDirectory()) {
         const repoPath = relative(cwd, possiblePath) || ".";
-        const files = await git(cwd, ["ls-files", "--", repoPath]);
+        const [files, status] = await Promise.all([
+          git(cwd, ["ls-files", "--", repoPath]),
+          git(cwd, ["status", "--short", "--untracked-files=all", "--", repoPath]),
+        ]);
         return {
-          subject: `Review the boundary at ${text}. It is a directory, so inspect the listed files with tools before making claims.\n\nTracked files in boundary:\n${files.trim() || "(no tracked files)"}`,
+          subject: `Review the boundary at ${text}. It is a directory, so inspect the listed files with tools before making claims.\n\nWorking tree status in boundary:\n${status.trim() || "clean"}\n\nTracked files in boundary:\n${files.trim() || "(no tracked files)"}`,
           subjectLabel: text,
         };
       }
