@@ -1,6 +1,6 @@
 # agentkit
 
-A personal collection of skills and extensions for Pi and other agentic LLM tools.
+A personal collection of extensions for Pi and other agentic LLM tools.
 
 ## Installation
 
@@ -13,7 +13,6 @@ This installs everything:
 | What | Where |
 |------|-------|
 | Pi extensions | `~/.pi/agent/extensions/` (symlinked) |
-| Skills | `~/.agents/skills/` (symlinked) |
 | [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) config | `~/.config/dcg/` (symlinked) |
 
 ## Pi Extensions
@@ -171,12 +170,6 @@ Starship-style custom footer with model context, git status, costs, and token st
 
 Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings nest under Pi's system prompt sections instead of competing with them.
 
-## Skills
-
-### [youtube-transcript](./skills/youtube-transcript/SKILL.md)
-
-Extract and work with YouTube video transcripts.
-
 ## Tools
 
 ### [dcg](./dcg/)
@@ -200,8 +193,6 @@ Oracle and librarian scout design inspired by [Amp](https://ampcode.com/)'s agen
 Answer pi extension from [mitsuhiko/agent-stuff](https://github.com/mitsuhiko/agent-stuff) (Apache 2.0, Armin Ronacher).
 
 Messages pi extension from [mitsuhiko/agent-stuff](https://github.com/mitsuhiko/agent-stuff) (Apache 2.0, Armin Ronacher).
-
-Tmux skill from [mitsuhiko/agent-stuff](https://github.com/mitsuhiko/agent-stuff) (Apache 2.0, Armin Ronacher).
 
 Notify pi extension from [pi-coding-agent examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions) (MIT, Mario Zechner).
 
