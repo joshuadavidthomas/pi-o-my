@@ -13,12 +13,12 @@ describe("review command args", () => {
     });
   });
 
-  it("parses diff options and the Beck lens flag", () => {
-    expect(parseArgs("diff --base main --strict --beck")).toMatchObject({
+  it("parses diff options and a lens flag", () => {
+    expect(parseArgs("diff --base main --strict --muratori")).toMatchObject({
       subcommand: "diff",
       base: "main",
       strict: true,
-      lens: "beck",
+      lens: "muratori",
     });
   });
 

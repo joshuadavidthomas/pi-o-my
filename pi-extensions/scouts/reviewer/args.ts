@@ -156,7 +156,7 @@ export function invalidInvocationText(cwd: string, parsed: ParsedArgs): string {
 }
 
 export function helpText(): string {
-  return `Structural review runs reviewer-local Hickey, Lowy, Grug, and Beck lenses as isolated scouts.
+  return `Structural review runs reviewer-local Hickey, Lowy, Grug, Beck, and Muratori lenses as isolated scouts.
 
 Hickey asks: is this structurally simple?
 
@@ -165,6 +165,8 @@ Lowy asks: do the boundaries contain change?
 Grug asks: does this make the next change smaller in brain?
 
 Beck asks: what smallest tidy makes the intended change easy?
+
+Muratori asks: does this keep the actual work visible until real semantics are worth compressing?
 
 How to use it:
 - Current repository: /review or /review repo
@@ -193,5 +195,6 @@ Examples:
 /review staged --hickey
 /review file src/auth/session.ts
 /review boundary src/billing --lowy
-/review diff --grug`;
+/review diff --grug
+/review diff --muratori`;
 }

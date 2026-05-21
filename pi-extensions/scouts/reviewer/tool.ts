@@ -14,7 +14,7 @@ export const ReviewerParams = Type.Object({
       "Write a complete review brief for the Reviewer scout.",
       "Include what artifact is being reviewed, the constraints, and what kind of output is useful.",
       "Reviewer is for judging a concrete artifact, not open-ended exploration. Use finder/oracle first if you do not yet know what to review.",
-      "Good: 'Review this diff for Beck tidy-first change economics. Strict mode. Focus on the behavior/structure split and smallest safe sequence.'",
+      "Good: 'Review this diff for Muratori semantic compression and actual work visibility. Strict mode. Focus on premature abstraction, hidden work, and performance/debuggability visibility.'",
       "Bad: 'look around and tell me what to improve'",
     ].join("\n"),
   }),
@@ -54,7 +54,7 @@ export const ReviewerParams = Type.Object({
   ),
   repoConfig: Type.Optional(
     Type.String({
-      description: "Optional repo-specific review rules, Hickey catalog additions, or Lowy volatility map.",
+      description: "Optional repo-specific review rules, lens catalog additions, or decomposition/volatility notes.",
     }),
   ),
   model: ModelParam,
@@ -85,7 +85,7 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
   description:
     "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through one isolated reviewer lens. For multi-lens reviews, call reviewer multiple times in the same assistant turn, one call per lens. Use finder for locating code and oracle for understanding code before judging it.",
   promptGuidelines: [
-    "The reviewer tool runs exactly one lens per call. For a Hickey + Lowy + Grug + Beck review, emit four parallel reviewer tool calls with lens set to hickey, lowy, grug, and beck. Do not pass arrays of lenses.",
+    `The reviewer tool runs exactly one lens per call. For multiple independent lenses, emit one reviewer tool call per lens with lens set to one of: ${REVIEW_LENSES.join(", ")}. Do not pass arrays of lenses.`,
   ],
   parameters: ReviewerParams,
 

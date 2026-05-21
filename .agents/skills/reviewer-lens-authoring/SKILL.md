@@ -19,12 +19,15 @@ Use this for `pi-extensions/scouts/reviewer` lenses. A lens is an adversarial re
    - Name the lens's evidence standard: what counts as proof for or against a finding.
    - Name the lens's preferred fixes and the fixes it tends to reject.
    - Name the tensions with the existing lenses so the lens is not just another best-practices checklist.
+   - Check in with the user: summarize what was found, what the agent thinks the lens should be, whether it is worth adding, likely overlaps, and open doubts.
 3. Inspect the existing lens shape in `pi-extensions/scouts/reviewer/lenses/`.
+   - Narrate the relevant shape findings and what they imply for this lens.
 4. Decide the lens identity and output contract.
    - Choose framework-style or persona-style.
    - Define the output sections that force this lens to reason in its own way.
    - State what kind of finding belongs in this lens and what belongs in another lens.
-5. Draft the lens at `pi-extensions/scouts/reviewer/lenses/<lens>.md`.
+   - Check in with the user before drafting: present the proposed identity, core nugget, output contract, overlap/tension notes, and ask for confirmation or correction.
+5. Draft the lens at `pi-extensions/scouts/reviewer/lenses/<lens>.md` only after the user confirms the direction.
 6. Self-review the draft before wiring it in.
    - Check that it does not collapse into generic best practices.
    - Check that it has source-backed definitions and evidence rules.
@@ -43,20 +46,104 @@ Use this for `pi-extensions/scouts/reviewer` lenses. A lens is an adversarial re
    - `pi-extensions/scouts/reviewer/artifacts.test.ts` for artifact collection edge cases
    - focused tests near changed support code
 
+## Checkpoints
+
+Before writing or changing a lens file, keep the user in the loop:
+
+1. After research, report the source-backed findings and initial judgment.
+2. After synthesis, report the core nugget, evidence standard, preferred/rejected fixes, overlaps, and doubts.
+3. Before recommending a direction, explicitly state:
+   - **Core nugget/question:** the one-sentence distillation or question this lens asks better than the others.
+   - **Uniquely catches:** concrete review failures this lens would surface that other lenses might miss or underweight.
+   - **Distinct role:** how this lens should behave in the reviewer set.
+4. After inspecting existing lenses, report the shape constraints and likely tensions.
+5. Before drafting, ask for confirmation on the lens identity and output contract.
+
+Use this default check-in shape; adapt headings when the conversation calls for it, but do not omit the decision points:
+
+```markdown
+# Research checkpoint: <lens/person>
+
+## Research findings
+
+### What I found
+- ...
+
+### Source-backed claims
+- ...
+
+### Common misreadings
+- ...
+
+## Lens synthesis
+
+### Core nugget/question
+- One sentence or question that condenses the source-backed idea into the lens's center.
+
+### Evidence standard
+- ...
+
+### Preferred fixes
+- ...
+
+### Rejected false fixes
+- ...
+
+## Relationship to existing lenses
+
+### Likely overlaps
+- ...
+
+### Uniquely catches
+- ...
+
+### Distinct role
+- ...
+
+### Existing lens shape findings
+- ...
+
+## Should this become a lens?
+
+### Is this a good reviewer lens?
+- yes/no/maybe, with reasons
+
+### Risks or doubts
+- ...
+
+## Proposed lens shape
+
+### Proposed lens identity
+- ...
+
+### Proposed output contract
+- ...
+
+## Recommendation
+- Add / don't add / research more.
+- What would be drafted next.
+- Ask for confirmation before writing files.
+```
+
+Do not silently proceed from research into implementation. The user should have a chance to redirect the lens before prose hardens into files.
+
 ## Research Synthesis Checklist
 
 Before drafting, produce a short synthesis with:
 
 - **Baseline summary:** what the source material says, without turning it into reviewer instructions yet.
-- **Core nugget:** the one sharp review question this lens exists to ask.
+- **Core nugget/question:** the one-sentence distillation or question this lens exists to ask.
 - **Key definitions:** terms the lens needs to use precisely.
 - **Evidence standard:** what proof the lens trusts most when judging code, plans, or diffs.
 - **Preferred fixes:** the kinds of changes this lens naturally recommends.
 - **Rejected false fixes:** changes that sound aligned but violate the source idea.
 - **Tensions:** where this lens would disagree with the existing lenses.
 - **Output implications:** sections that force the lens to reason in its own way.
+- **Core nugget/question:** the one-sentence distillation or question the lens exists to ask.
+- **Uniquely catches:** failures the lens catches better than the existing reviewer set.
+- **Distinct role:** the lens's job in the reviewer set, stated before the recommendation.
 
-Do not draft the lens until the core nugget is clear enough to explain in one sentence.
+Do not draft the lens until the core nugget is clear enough to explain in one sentence and the user has confirmed the direction.
 
 ## Lens Body Shape
 
@@ -140,5 +227,6 @@ If a listed test file does not exist yet, either add it when relevant or run the
 | Updating code but not README/help/tool prose | Sweep static prose for old lens lists |
 | Making the lens a generic best-practices checklist | Give it a distinct premise, definitions, output contract, process, and quality bar |
 | Skipping source research | Research first; extract claims, definitions, questions, and tensions before drafting |
+| Silently moving from synthesis to implementation | Check in after research/synthesis and get confirmation before writing the lens |
 | Letting the lens agree with every other lens | Add explicit tensions, evidence standards, and different fix preferences |
 | Recommending fixes without evidence | Require file/line/behavior evidence and a `factCheck` pass |
