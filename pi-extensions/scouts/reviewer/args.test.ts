@@ -14,11 +14,11 @@ describe("review command args", () => {
   });
 
   it("parses diff options and a lens flag", () => {
-    expect(parseArgs("diff --base main --strict --ousterhout")).toMatchObject({
+    expect(parseArgs("diff --base main --strict --feathers")).toMatchObject({
       subcommand: "diff",
       base: "main",
       strict: true,
-      lens: "ousterhout",
+      lens: "feathers",
     });
   });
 

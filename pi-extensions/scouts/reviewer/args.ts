@@ -156,7 +156,7 @@ export function invalidInvocationText(cwd: string, parsed: ParsedArgs): string {
 }
 
 export function helpText(): string {
-  return `Structural review runs reviewer-local Hickey, Lowy, Grug, Beck, Muratori, Lamport, and Ousterhout lenses as isolated scouts.
+  return `Structural review runs reviewer-local Hickey, Lowy, Grug, Beck, Muratori, Lamport, Ousterhout, and Feathers lenses as isolated scouts.
 
 Hickey asks: is this structurally simple?
 
@@ -171,6 +171,8 @@ Muratori asks: does this keep the actual work visible until real semantics are w
 Lamport asks: what precise state-machine model preserves the required properties?
 
 Ousterhout asks: does this design hide the right knowledge behind deep, obvious abstractions?
+
+Feathers asks: can this legacy change be made safely with characterization tests and seams?
 
 How to use it:
 - Current repository: /review or /review repo
@@ -202,5 +204,6 @@ Examples:
 /review diff --grug
 /review diff --muratori
 /review plan docs/agents/plugin-system/plan.md --lamport
-/review file src/api/client.ts --ousterhout`;
+/review file src/api/client.ts --ousterhout
+/review diff --feathers`;
 }
