@@ -191,6 +191,10 @@ Wraps the [btca (Better Context App)](https://btca.dev) CLI tool. Covers install
 
 Methodical approach to researching unfamiliar codebases using scout subagents.
 
+### [reviewer-lens-authoring](./.agents/skills/reviewer-lens-authoring/SKILL.md)
+
+Project-local guide for adding or updating reviewer scout lenses, wiring them into `/review`, and validating the lens/tool/docs changes.
+
 ### [tmux](./skills/tmux/SKILL.md)
 
 Remote control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
