@@ -54,6 +54,19 @@ function lensFlagList(): string {
   return REVIEW_LENSES.map((lens) => `--${lens}`).join("|");
 }
 
+function requireFlagValue(words: string[], index: number, flag: string): string {
+  const value = words[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value.\n\n${shortUsage()}`);
+  }
+  return value;
+}
+
+function parseContextValue(value: string): ReviewContext {
+  if (value === "none" || value === "brief" || value === "transcript") return value;
+  throw new Error(`Invalid --context value: ${value}. Expected none, brief, or transcript.\n\n${shortUsage()}`);
+}
+
 function shellWords(input: string): string[] {
   const words: string[] = [];
   let current = "";
@@ -128,13 +141,12 @@ function parseArgs(args: string): ParsedArgs {
       continue;
     }
     if (word === "--base") {
-      base = words[i + 1];
+      base = requireFlagValue(words, i, "--base");
       i += 1;
       continue;
     }
     if (word === "--context") {
-      const value = words[i + 1];
-      if (value === "none" || value === "brief" || value === "transcript") context = value;
+      context = parseContextValue(requireFlagValue(words, i, "--context"));
       i += 1;
       continue;
     }
@@ -558,7 +570,14 @@ export function registerReviewCommand(pi: ExtensionAPI) {
       return filtered.map((value) => ({ value, label: value }));
     },
     handler: async (args, ctx) => {
-      const parsed = parseArgs(args);
+      let parsed: ParsedArgs;
+      try {
+        parsed = parseArgs(args);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+        return;
+      }
+
       if (parsed.subcommand === "help") {
         ctx.ui.notify(helpText(), "info");
         return;

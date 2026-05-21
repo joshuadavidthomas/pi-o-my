@@ -160,11 +160,18 @@ class ScoutToolRowComponent extends Container {
       : "";
 
     if (cleaned || nestedScout) {
-      this.detailText.setText(theme.fg("dim", [nestedScout, cleaned].filter(Boolean).join("\n")));
+      this.detailText.setText([
+        nestedScout,
+        cleaned ? theme.fg("dim", cleaned) : "",
+      ].filter(Boolean).join("\n"));
       if (!this.showingDetails) {
         this.addChild(this.detailText);
-        this.addChild(this.bottomSpacer);
+        if (!nestedScout) this.addChild(this.bottomSpacer);
         this.showingDetails = true;
+      } else if (nestedScout) {
+        this.removeChild(this.bottomSpacer);
+      } else if (!this.children.includes(this.bottomSpacer)) {
+        this.addChild(this.bottomSpacer);
       }
       return;
     }
@@ -197,7 +204,7 @@ function formatNestedScout(parentTool: Extract<DisplayItem, { type: "tool" }>, d
     : "unknown model";
   const status = run.status ?? details.status;
   const { label, summary } = formatToolCallParts(parentTool.name, parentTool.args);
-  const lines = [`↳ ${label} ${theme.fg("dim", model)}`];
+  const lines = [`↳ ${theme.fg("toolTitle", label)} ${theme.fg("dim", model)}`];
   if (summary) lines.push(`  ${theme.fg("dim", truncateVisible(summary, 88))}`);
 
   const toolStartIndex = lines.length;
@@ -206,7 +213,7 @@ function formatNestedScout(parentTool: Extract<DisplayItem, { type: "tool" }>, d
   for (const tool of visibleTools) {
     const { label, summary } = formatToolCallParts(tool.name, tool.args);
     const icon = scoutStatusIcon(theme, tool.isError ? "error" : tool.result && !tool.isPartial ? "done" : "running");
-    lines.push(`  ${icon} ${label}${summary ? ` ${theme.fg("dim", truncateVisible(summary, 72))}` : ""}`);
+    lines.push(`  ${icon} ${theme.fg("toolTitle", label)}${summary ? ` ${theme.fg("dim", truncateVisible(summary, 72))}` : ""}`);
   }
   if (tools.length > visibleTools.length) {
     lines.splice(toolStartIndex, 0, `  … ${tools.length - visibleTools.length} earlier tool calls`);
