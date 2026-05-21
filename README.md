@@ -62,10 +62,6 @@ Extract questions from the last assistant message into an interactive Q&A interf
 
 When the assistant asks multiple questions, `/answer` (or `Ctrl+.`) extracts them using a fast model (prefers Codex mini, falls back to Haiku), then presents a TUI for navigating and answering each question. Answers are compiled and submitted when complete.
 
-#### [beans](./extensions/beans.ts)
-
-Integrates [Beans](https://github.com/hmans/beans) with pi by running `beans prime` in a project using Beans to track issues and injecting its output into the system prompt at session start and after compaction.
-
 #### [custom-provider-claude-agent-sdk](./extensions/custom-provider-claude-agent-sdk/)
 
 Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider and mirrors pi's built-in Anthropic Claude model list, so model IDs look like `claude-agent-sdk/claude-sonnet-4-6`.
