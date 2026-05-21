@@ -604,7 +604,6 @@ export function registerReviewCommand(pi: ExtensionAPI) {
           return;
         }
 
-        ctx.ui.setStatus("review", "reviewing…");
         const mode: ReviewMode = parsed.strict ? "strict" : "notes";
         const context = parsed.context ?? defaultContextFor(parsed.subcommand);
         const repoConfig = await optionalRepoConfig(ctx.cwd);
@@ -665,7 +664,6 @@ export function registerReviewCommand(pi: ExtensionAPI) {
         cleanupReviewSignal();
         uninstallInputHandler();
         clearLiveReviewWidget(ctx);
-        ctx.ui.setStatus("review", "");
       }
     },
   });
