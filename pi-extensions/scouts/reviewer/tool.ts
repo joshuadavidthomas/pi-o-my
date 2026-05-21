@@ -14,7 +14,7 @@ export const ReviewerParams = Type.Object({
       "Write a complete review brief for the Reviewer scout.",
       "Include what artifact is being reviewed, the constraints, and what kind of output is useful.",
       "Reviewer is for judging a concrete artifact, not open-ended exploration. Use finder/oracle first if you do not yet know what to review.",
-      "Good: 'Review this diff for Muratori semantic compression and actual work visibility. Strict mode. Focus on premature abstraction, hidden work, and performance/debuggability visibility.'",
+      "Good: 'Review this design for Lamport state-space and invariant risks. Strict mode. Focus on states, transitions, invariants, and reachable counterexamples.'",
       "Bad: 'look around and tell me what to improve'",
     ].join("\n"),
   }),
