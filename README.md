@@ -86,10 +86,6 @@ Displays severity badges, detailed reasons, and tracks allow decisions in tool r
 
 Widens pi's autocomplete column so long model and provider IDs are easier to read in pickers like `/model`.
 
-#### [git-diff](./extensions/git-diff.ts)
-
-Adds `/diff` and `Alt+G` for viewing unstaged, staged, and untracked git diffs inside pi with pager-style formatting.
-
 #### [handoff](./extensions/handoff.ts)
 
 Transfer context to a new focused session instead of compacting.
