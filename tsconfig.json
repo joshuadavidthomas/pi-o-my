@@ -11,6 +11,6 @@
     "noEmit": true,
     "types": ["node", "bun"]
   },
-  "include": ["pi-extensions/**/*.ts"],
+  "include": ["extensions/**/*.ts"],
   "exclude": ["node_modules", "**/dist/**"]
 }

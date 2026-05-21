@@ -1,22 +1,36 @@
 {
-  "devDependencies": {
-    "@mariozechner/pi-ai": "^0.69.0",
-    "@mariozechner/pi-coding-agent": "^0.69.0",
-    "@types/bun": "^1.3.13",
-    "@types/jsdom": "^27.0.0",
-    "@types/node": "^25.0.10",
-    "@types/turndown": "^5.0.6",
-    "typescript": "^5.9.3"
+  "name": "pi-o-my",
+  "private": true,
+  "keywords": ["pi-package"],
+  "workspaces": [
+    "extensions/custom-provider-claude-agent-sdk",
+    "extensions/scouts",
+    "extensions/skill-requires-path"
+  ],
+  "pi": {
+    "extensions": ["./extensions"]
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "packageManager": "bun@1.3.13",
-  "dependencies": {
-    "@mozilla/readability": "^0.6.0",
-    "jsdom": "^28.1.0",
-    "turndown": "^7.2.2",
-    "turndown-plugin-gfm": "^1.0.2",
-    "yaml": "^2.8.2"
-  }
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.75.4",
+    "@earendil-works/pi-ai": "^0.75.4",
+    "@earendil-works/pi-coding-agent": "^0.75.4",
+    "@earendil-works/pi-tui": "^0.75.4",
+    "@types/bun": "^1.3.13",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^25.0.10",
+    "@types/turndown": "^5.0.6",
+    "typebox": "^1.1.38",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "bun@1.3.13"
 }

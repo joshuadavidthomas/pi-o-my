@@ -1,40 +1,72 @@
-# agentkit
+# Pi-O-My
 
-A personal collection of extensions for Pi and other agentic LLM tools.
+There are many Pi setups, but this one is mine. [Please don’t set it on fire.](https://en.wikipedia.org/wiki/Pie-O-My)
+
+![Pi-O-My](./assets/pi-o-my.png)
 
 ## Installation
 
+### Install everything
+
 ```bash
-./install.sh
+pi install git:github.com/joshuadavidthomas/pi-o-my
 ```
 
-This installs everything:
+This installs the whole enchilada: every extension declared by the package.
 
-| What | Where |
-|------|-------|
-| Pi extensions | `~/.pi/agent/extensions/` (symlinked) |
+### Install selected extensions
 
-## Pi Extensions
+Add a filtered package entry to `~/.pi/agent/settings.json` for global installs, or `.pi/settings.json` for a project-local install:
 
-Extensions for [pi](https://shittycodingagent.ai/), a TUI coding agent.
+```json
+{
+  "packages": [
+    {
+      "source": "git:github.com/joshuadavidthomas/pi-o-my",
+      "extensions": ["extensions/answer.ts"]
+    }
+  ]
+}
+```
 
-#### [auto-share](./pi-extensions/auto-share/)
+Load multiple extensions by listing each entrypoint:
+
+```json
+{
+  "packages": [
+    {
+      "source": "git:github.com/joshuadavidthomas/pi-o-my",
+      "extensions": [
+        "extensions/answer.ts",
+        "extensions/notify.ts",
+        "extensions/scouts/index.ts"
+      ]
+    }
+  ]
+}
+```
+
+If you already ran `pi install`, replace the simple package string in settings with the filtered object.
+
+## Extensions
+
+#### [auto-share](./extensions/auto-share/)
 
 Automates the built-in `/share` functionality — keeps a gist updated with the current session as you work, so you always have a shareable URL without manual exports.
 
 Off by default. Enable per-project with `/auto-share on` or per-invocation with `pi --auto-share`. Requires `gh` CLI (`gh auth login`).
 
-#### [answer](./pi-extensions/answer.ts)
+#### [answer](./extensions/answer.ts)
 
 Extract questions from the last assistant message into an interactive Q&A interface.
 
 When the assistant asks multiple questions, `/answer` (or `Ctrl+.`) extracts them using a fast model (prefers Codex mini, falls back to Haiku), then presents a TUI for navigating and answering each question. Answers are compiled and submitted when complete.
 
-#### [beans](./pi-extensions/beans.ts)
+#### [beans](./extensions/beans.ts)
 
 Integrates [Beans](https://github.com/hmans/beans) with pi by running `beans prime` in a project using Beans to track issues and injecting its output into the system prompt at session start and after compaction.
 
-#### [custom-provider-claude-agent-sdk](./pi-extensions/custom-provider-claude-agent-sdk/)
+#### [custom-provider-claude-agent-sdk](./extensions/custom-provider-claude-agent-sdk/)
 
 Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider and mirrors pi's built-in Anthropic Claude model list, so model IDs look like `claude-agent-sdk/claude-sonnet-4-6`.
 
@@ -42,7 +74,7 @@ The provider runs one live streaming SDK query per active pi session/branch. Cla
 
 Session continuity is persisted in pi custom session entries and restored on resume. Structural boundaries such as `/compact`, `/new`, forks, and branch/tree switches close/reset the live SDK query as needed; model switching away and back closes the process without resetting SDK continuity for the same pi session. Print mode closes the live query after each final turn so CLI invocations exit.
 
-#### [dcg](./pi-extensions/dcg.ts)
+#### [dcg](./extensions/dcg.ts)
 
 Bash tool override that integrates with [dcg (Destructive Command Guard)](https://github.com/Dicklesworthstone/destructive_command_guard).
 
@@ -54,7 +86,15 @@ Runs every bash command through dcg's hook mode before execution. When dcg block
 
 Displays severity badges, detailed reasons, and tracks allow decisions in tool results. Falls back gracefully when dcg isn't available or returns unexpected output.
 
-#### [handoff](./pi-extensions/handoff.ts)
+#### [editor](./extensions/editor.ts)
+
+Widens pi's autocomplete column so long model and provider IDs are easier to read in pickers like `/model`.
+
+#### [git-diff](./extensions/git-diff.ts)
+
+Adds `/diff` and `Alt+G` for viewing unstaged, staged, and untracked git diffs inside pi with pager-style formatting.
+
+#### [handoff](./extensions/handoff.ts)
 
 Transfer context to a new focused session instead of compacting.
 
@@ -72,29 +112,29 @@ The generated prompt appears in the editor for review before starting the new se
 /handoff check other places that need this fix
 ```
 
-#### [kebab-command-aliases](./pi-extensions/kebab-command-aliases.ts)
+#### [kebab-command-aliases](./extensions/kebab-command-aliases.ts)
 
 Personal command-palette hygiene shim. Some pi extensions register many top-level kebab-case slash commands, which can clutter `/` autocomplete. This keeps the original commands available, but hides the kebab variants from autocomplete and exposes them as grouped subcommands instead — for example, `/example-status` becomes `/example status`.
 
 This is a personal preference: it does not matter at all, except it really does when autocomplete is part of daily muscle memory. Rather than pester extension authors or maintain forks over taste, this shim makes pi behave the way I want locally. It monkey-patches pi internals to delegate grouped subcommands to the original command handlers, so it may break across pi releases. If the patch fails, it falls back to pi's default command list and shows a warning.
 
-#### [messages](./pi-extensions/messages.ts)
+#### [messages](./extensions/messages.ts)
 
 Whimsical working messages while the agent thinks.
 
 Replaces the default "Working..." message with randomly selected playful alternatives like "Percolating...", "Consulting the void...", "Herding pointers...", and "Reticulating splines...". Messages change on each turn for variety and delight.
 
-#### [notify](./pi-extensions/notify.ts)
+#### [notify](./extensions/notify.ts)
 
 Desktop notifications when the agent finishes. Uses a cheap model to summarize what was done ("Wrote auth.ts") or what's blocking ("Need: which database?") so you know at a glance whether to come back.
 
 Supported terminals: Ghostty, iTerm2, WezTerm, rxvt-unicode. Not supported: Kitty (uses OSC 99), Terminal.app, Windows Terminal, Alacritty.
 
-#### [pi-bash-log-cleanup](./pi-extensions/pi-bash-log-cleanup.ts)
+#### [pi-bash-log-cleanup](./extensions/pi-bash-log-cleanup.ts)
 
 Silently removes stale `/tmp/pi-bash-*` full-output logs on session start and shutdown. This keeps Pi's truncated bash-output temp files from accumulating after sessions finish. Set `PI_BASH_LOG_CLEANUP_DEBUG=1` or `DEBUG=pi-bash-log-cleanup` to write cleanup activity to `~/.pi/agent/pi-bash-log-cleanup.log`.
 
-#### [peon-ping](./pi-extensions/peon-ping/)
+#### [peon-ping](./extensions/peon-ping/)
 
 Sound notifications for pi using [peon-ping](https://github.com/PeonPing/peon-ping) / OpenPeon sound packs. Plays themed audio clips (Warcraft III Peon, GLaDOS, Duke Nukem, StarCraft, and more) on lifecycle events:
 
@@ -109,25 +149,25 @@ Sound notifications for pi using [peon-ping](https://github.com/PeonPing/peon-pi
 
 Cross-platform audio: `afplay` (macOS), `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux), PowerShell MediaPlayer (WSL). Also picks up existing packs from `~/.claude/hooks/peon-ping/` if you have a Claude Code installation. Config and state stored in `~/.config/peon-ping/`.
 
-#### [ralph](./pi-extensions/ralph/)
+#### [ralph](./extensions/ralph/)
 
 **Experimental.** In-session iterative agent loop with fresh context per iteration, implementing [Geoffrey Huntley's Ralph Wiggum loop approach](https://ghuntley.com/ralph/).
 
 Uses the pi SDK in-process (no subprocess, no RPC) to run repeated agent turns against a task file. Supports steering mid-iteration with queued user messages, follow-ups for next iteration, and comprehensive stats tracking (cost, tokens, duration). State persisted to `.ralph/<name>/` with iteration snapshots.
 
-#### [read](./pi-extensions/read.ts)
+#### [read](./extensions/read.ts)
 
 Overrides the built-in read tool to handle directories gracefully.
 
 When called on a directory, returns an `ls -la` listing with a hint instead of erroring with EISDIR. All other behavior delegates to the built-in implementation.
 
-#### [rg-replace-warning](./pi-extensions/rg-replace-warning.ts)
+#### [rg-replace-warning](./extensions/rg-replace-warning.ts)
 
 Warns when `rg` is called with `-r` (which means `--replace`, not recursive). A common grep muscle memory mistake: `rg -rn "pattern"` silently replaces every match with the letter `n` instead of searching recursively with line numbers. `rg` is already recursive and shows line numbers by default.
 
 Non-blocking — the command still runs, but a warning is prepended to the tool result so the LLM sees it and self-corrects.
 
-#### [scouts](./pi-extensions/scouts/)
+#### [scouts](./extensions/scouts/)
 
 Scout subagent system — spins up focused small-model sessions with purpose-built tool sets, returning structured results with custom TUI rendering. Originally vendored from [pi-finder](https://github.com/default-anton/pi-finder) and [pi-librarian](https://github.com/default-anton/pi-librarian), now significantly expanded.
 
@@ -158,15 +198,19 @@ Also registers `/review`, a command that gathers an artifact and calls the revie
 /review boundary <path-or-description>
 ```
 
-#### [skill-requires-path](./pi-extensions/skill-requires-path/)
+#### [skill-requires-path](./extensions/skill-requires-path/)
 
 Strips skills from the system prompt when their `metadata.requires-path` frontmatter field doesn't exist in the current project. Skills declare a path requirement under metadata (e.g., `metadata: { requires-path: ".jj/" }`) and the extension removes them from the LLM's context when the path is absent — the LLM never sees the skill.
 
-#### [statusline](./pi-extensions/statusline.ts)
+#### [skill-usage](./extensions/skill-usage.ts)
+
+Tracks `SKILL.md` reads and writes aggregate skill usage stats to `~/.pi/agent/skill-usage.json`.
+
+#### [statusline](./extensions/statusline.ts)
 
 Starship-style custom footer with model context, git status, costs, and token stats.
 
-#### [system-prompt-heading-levels](./pi-extensions/system-prompt-heading-levels.ts)
+#### [system-prompt-heading-levels](./extensions/system-prompt-heading-levels.ts)
 
 Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings nest under Pi's system prompt sections instead of competing with them.
 
@@ -186,4 +230,4 @@ Peon-ping pi extension uses the [peon-ping](https://github.com/PeonPing/peon-pin
 
 ## License
 
-agentkit is licensed under the MIT license. See the [`LICENSE`](LICENSE) file for more information.
+pi-o-my is licensed under the MIT license. See the [`LICENSE`](LICENSE) file for more information.

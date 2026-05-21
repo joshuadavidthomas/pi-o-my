@@ -5,7 +5,7 @@ description: Use when adding, editing, or reviewing reviewer scout lenses in thi
 
 # Reviewer Lens Authoring
 
-Use this for `pi-extensions/scouts/reviewer` lenses. A lens is an adversarial review mindset, not a generic checklist. Each lens should overlap with the others on some problems while disagreeing on framing, evidence, and preferred fixes.
+Use this for `extensions/scouts/reviewer` lenses. A lens is an adversarial review mindset, not a generic checklist. Each lens should overlap with the others on some problems while disagreeing on framing, evidence, and preferred fixes.
 
 ## Add or Update a Lens
 
@@ -20,30 +20,30 @@ Use this for `pi-extensions/scouts/reviewer` lenses. A lens is an adversarial re
    - Name the lens's preferred fixes and the fixes it tends to reject.
    - Name the tensions with the existing lenses so the lens is not just another best-practices checklist.
    - Check in with the user: summarize what was found, what the agent thinks the lens should be, whether it is worth adding, likely overlaps, and open doubts.
-3. Inspect the existing lens shape in `pi-extensions/scouts/reviewer/lenses/`.
+3. Inspect the existing lens shape in `extensions/scouts/reviewer/lenses/`.
    - Narrate the relevant shape findings and what they imply for this lens.
 4. Decide the lens identity and output contract.
    - Choose framework-style or persona-style.
    - Define the output sections that force this lens to reason in its own way.
    - State what kind of finding belongs in this lens and what belongs in another lens.
    - Check in with the user before drafting: present the proposed identity, core nugget, output contract, overlap/tension notes, and ask for confirmation or correction.
-5. Draft the lens at `pi-extensions/scouts/reviewer/lenses/<lens>.md` only after the user confirms the direction.
+5. Draft the lens at `extensions/scouts/reviewer/lenses/<lens>.md` only after the user confirms the direction.
 6. Self-review the draft before wiring it in.
    - Check that it does not collapse into generic best practices.
    - Check that it has source-backed definitions and evidence rules.
    - Check that it overlaps with existing lenses only where the reasoning or fix differs.
-7. Add the lens id to `REVIEW_LENSES` in `pi-extensions/scouts/reviewer/config.ts`.
+7. Add the lens id to `REVIEW_LENSES` in `extensions/scouts/reviewer/config.ts`.
 8. Update user-facing/static prose:
-   - `/review` help in `pi-extensions/scouts/reviewer/args.ts`
-   - reviewer tool guidance in `pi-extensions/scouts/reviewer/tool.ts`
-   - command description in `pi-extensions/scouts/reviewer/command.ts` only if it hard-codes lens names
+   - `/review` help in `extensions/scouts/reviewer/args.ts`
+   - reviewer tool guidance in `extensions/scouts/reviewer/tool.ts`
+   - command description in `extensions/scouts/reviewer/command.ts` only if it hard-codes lens names
    - `README.md` scouts section
 9. Validate the lens behavior on a real or representative artifact.
    - Confirm the output is distinct, useful, evidence-backed, and shaped by the lens's core nugget.
    - Revise the lens before relying on code validation if the behavior is generic or mushy.
 10. Add or update tests when behavior changes:
-   - `pi-extensions/scouts/reviewer/args.test.ts` for flags/help-relevant parsing
-   - `pi-extensions/scouts/reviewer/artifacts.test.ts` for artifact collection edge cases
+   - `extensions/scouts/reviewer/args.test.ts` for flags/help-relevant parsing
+   - `extensions/scouts/reviewer/artifacts.test.ts` for artifact collection edge cases
    - focused tests near changed support code
 
 ## Checkpoints
@@ -181,7 +181,7 @@ Persona-style lenses may break this shape, but only when the voice improves reas
 
 ## Make Lenses Adversarial
 
-Before finalizing, write the lens's contrast with the lenses already in `pi-extensions/scouts/reviewer/lenses/`.
+Before finalizing, write the lens's contrast with the lenses already in `extensions/scouts/reviewer/lenses/`.
 
 Good lenses can find the same defect but should justify it differently and often recommend a different smallest fix.
 
@@ -212,7 +212,7 @@ If the output could have come from any generic senior engineer, revise the lens.
 Run:
 
 ```bash
-bun test pi-extensions/scouts/reviewer/args.test.ts pi-extensions/scouts/reviewer/artifacts.test.ts pi-extensions/scouts/reviewer/result.test.ts pi-extensions/scouts/tools/read-only-bash.test.ts
+bun test extensions/scouts/reviewer/args.test.ts extensions/scouts/reviewer/artifacts.test.ts extensions/scouts/reviewer/result.test.ts extensions/scouts/tools/read-only-bash.test.ts
 bun run typecheck
 ```
 

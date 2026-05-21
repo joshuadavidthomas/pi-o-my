@@ -1,0 +1,11 @@
+{
+  "name": "@pi-o-my/skill-requires-path",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
+  }
+}
