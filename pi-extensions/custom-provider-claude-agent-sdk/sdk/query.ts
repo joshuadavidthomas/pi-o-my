@@ -232,6 +232,8 @@ async function finishToolContinuation(session: ClaudeSession, turn: ClaudeTurn, 
       session.finishActiveTurn(turn);
       if (shouldCloseLiveQueryAfterTurn()) {
         session.closeLiveQuery("Print-mode turn finished");
+      } else if (!session.hasPersistentSession()) {
+        session.closeLiveQuery("Transient session turn finished");
       }
     }
   } finally {
@@ -367,6 +369,8 @@ async function runSessionQuery(
     }
     if (closeAfterTurn && shouldCloseLiveQueryAfterTurn()) {
       session.closeLiveQuery("Print-mode turn finished");
+    } else if (closeAfterTurn && !session.hasPersistentSession()) {
+      session.closeLiveQuery("Transient session turn finished");
     }
   }
 }
