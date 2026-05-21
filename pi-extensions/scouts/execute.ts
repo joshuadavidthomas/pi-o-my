@@ -20,12 +20,10 @@ import type {
 import {
   SessionManager,
   createAgentSession,
-  createBashTool,
-  createReadTool,
   type ResourceLoader,
 } from "@mariozechner/pi-coding-agent";
 
-import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS } from "./display.ts";
+import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS, scoutDetailsFromUnknown } from "./display.ts";
 import { resolveDiversityModel, resolveWorkloadModel } from "./models.ts";
 import { createScoutResourceLoader } from "./resources.ts";
 import { computeOverallStatus, createInitialRun } from "./state.ts";
@@ -144,29 +142,39 @@ export function bumpDefaultEventTargetMaxListeners(): () => void {
   };
 }
 
-function prepareScoutTools(config: ScoutConfig, cwd: string): {
+export const SCOUT_CUSTOM_TOOL_MARKER = "__scoutCustomTool";
+
+export function prepareScoutTools(config: ScoutConfig, cwd: string, ctx?: ExtensionContext): {
   builtinTools: BuiltinToolName[];
   customTools: ToolDefinition[];
 } {
   const allTools = config.createTools
-    ? config.createTools(cwd)
-    : [createReadTool(cwd), createBashTool(cwd)];
+    ? config.createTools(cwd, ctx)
+    : [{ name: "read" }, { name: "bash" }];
 
   const builtinTools = allTools
-    .filter((tool: any): tool is { name: BuiltinToolName } => BUILTIN_TOOL_NAMES.has(tool.name))
+    .filter((tool: any): tool is { name: BuiltinToolName } => BUILTIN_TOOL_NAMES.has(tool.name) && tool[SCOUT_CUSTOM_TOOL_MARKER] !== true)
     .map((tool) => tool.name);
   const customTools = allTools
-    .filter((tool: any) => !BUILTIN_TOOL_NAMES.has(tool.name))
-    .map((tool: any): ToolDefinition => ({
-      name: tool.name,
-      label: tool.label,
-      description: tool.description,
-      parameters: tool.parameters,
-      execute: (toolCallId, params, signal, onUpdate) =>
-        tool.execute(toolCallId, params, signal, onUpdate),
-    }));
+    .filter((tool: any) => !BUILTIN_TOOL_NAMES.has(tool.name) || tool[SCOUT_CUSTOM_TOOL_MARKER] === true)
+    .map(toToolDefinition);
 
   return { builtinTools, customTools };
+}
+
+function toToolDefinition(tool: any): ToolDefinition {
+  return {
+    name: tool.name,
+    label: tool.label,
+    description: tool.description,
+    promptSnippet: tool.promptSnippet,
+    promptGuidelines: tool.promptGuidelines,
+    parameters: tool.parameters,
+    prepareArguments: tool.prepareArguments,
+    executionMode: tool.executionMode,
+    execute: (toolCallId, params, signal, onUpdate) =>
+      tool.execute(toolCallId, params, signal, onUpdate),
+  };
 }
 
 class ScoutWorkflow {
@@ -446,7 +454,7 @@ class ScoutWorkflow {
     runPlan: ScoutRunPlan,
     resourceLoader: ResourceLoader,
   ): Promise<{ session: AgentSession }> {
-    const { builtinTools, customTools } = prepareScoutTools(this.config, this.ctx.cwd);
+    const { builtinTools, customTools } = prepareScoutTools(this.config, this.ctx.cwd, this.ctx);
     const activeToolNames = [...builtinTools, ...customTools.map((tool) => tool.name)];
     return createAgentSession({
       cwd: this.ctx.cwd,
@@ -534,6 +542,9 @@ class ScoutWorkflow {
             if (item.type === "tool" && item.toolCallId === event.toolCallId) {
               const text = extractToolResultText(event.partialResult);
               if (text) item.result = text;
+              item.isPartial = true;
+              const nestedScout = scoutDetailsFromUnknown(event.partialResult?.details);
+              if (nestedScout) item.nestedScout = nestedScout;
               break;
             }
           }
@@ -547,8 +558,11 @@ class ScoutWorkflow {
             const item = run.displayItems[i];
             if (item.type === "tool" && item.toolCallId === event.toolCallId) {
               if (event.isError) item.isError = true;
+              item.isPartial = false;
               const text = extractToolResultText(event.result);
               if (text) item.result = text;
+              const nestedScout = scoutDetailsFromUnknown(event.result?.details);
+              if (nestedScout) item.nestedScout = nestedScout;
               break;
             }
           }

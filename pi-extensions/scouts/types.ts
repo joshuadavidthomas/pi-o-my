@@ -9,7 +9,7 @@ type ScoutActivityPhase = "thinking" | "calling_tools" | "writing_summary";
 
 // Scout-local timeline projection derived from pi message/tool-result types.
 export type DisplayItem =
-  | { type: "tool"; name: string; args: Record<string, unknown>; isError?: boolean; toolCallId?: string; result?: string }
+  | { type: "tool"; name: string; args: Record<string, unknown>; isError?: boolean; isPartial?: boolean; toolCallId?: string; result?: string; nestedScout?: ScoutDetails }
   | { type: "text"; text: string };
 
 interface ScoutRunDetails {
@@ -51,7 +51,8 @@ export interface ScoutConfig {
   buildUserPrompt: (params: Record<string, unknown>) => string;
   /**
    * Override the default tool set. If provided, replaces the defaults entirely.
-   * Built-in tools (name matches allTools) go to `tools`, others go to `customTools`.
+   * Tool wrappers can mark themselves as scout custom tools to keep their
+   * execute path even when their names match built-ins.
    */
-  createTools?: (cwd: string) => any[];
+  createTools?: (cwd: string, ctx?: import("@mariozechner/pi-coding-agent").ExtensionContext) => any[];
 }

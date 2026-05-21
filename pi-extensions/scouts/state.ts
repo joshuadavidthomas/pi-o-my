@@ -7,21 +7,9 @@ type ScoutRunDetails = ScoutDetails["runs"][number];
 
 const SCOUT_PARALLEL_IDLE_DELAY_MS = 2_000;
 const activeScoutToolCalls = new Set<string>();
-const parallelStateListeners = new Set<() => void>();
 let parallelScoutMode = false;
 let nextSyntheticScoutToolCallId = 0;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
-
-function notifyParallelStateChanged(): void {
-  for (const listener of parallelStateListeners) {
-    listener();
-  }
-}
-
-export function onScoutParallelStateChange(listener: () => void): () => void {
-  parallelStateListeners.add(listener);
-  return () => parallelStateListeners.delete(listener);
-}
 
 export function trackScoutToolCall(toolCallId: string | undefined): () => void {
   const id = toolCallId || `synthetic-${++nextSyntheticScoutToolCallId}`;
@@ -34,8 +22,6 @@ export function trackScoutToolCall(toolCallId: string | undefined): () => void {
   if (activeScoutToolCalls.size > 1) {
     parallelScoutMode = true;
   }
-  notifyParallelStateChanged();
-
   let finished = false;
   return () => {
     if (finished) return;
@@ -47,12 +33,10 @@ export function trackScoutToolCall(toolCallId: string | undefined): () => void {
     // would make the final render miss the overlap that just occurred.
     setTimeout(() => {
       activeScoutToolCalls.delete(id);
-      notifyParallelStateChanged();
       if (activeScoutToolCalls.size === 0) {
         idleTimer = setTimeout(() => {
           if (activeScoutToolCalls.size === 0) {
             parallelScoutMode = false;
-            notifyParallelStateChanged();
           }
           idleTimer = undefined;
         }, SCOUT_PARALLEL_IDLE_DELAY_MS);

@@ -43,6 +43,14 @@ function parseModelTarget(modelId: string | undefined): ModelTarget | null {
   if (!trimmedModelId) return null;
 
   const needle = trimmedModelId.toLowerCase();
+  const aliasTargets: Record<string, ModelTarget> = {
+    haiku: { modelId: "claude-haiku-4-5" },
+    sonnet: { modelId: "claude-sonnet-4-6" },
+    opus: { modelId: "claude-opus-4-7" },
+  };
+  const aliasTarget = aliasTargets[needle];
+  if (aliasTarget) return aliasTarget;
+
   const slashIdx = needle.indexOf("/");
   if (slashIdx === -1) {
     return { modelId: needle };
