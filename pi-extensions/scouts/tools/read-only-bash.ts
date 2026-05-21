@@ -17,18 +17,7 @@ const ALLOWED_GIT_SUBCOMMANDS = new Set(["diff", "status", "ls-files", "rev-pars
 const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set(["-C", "--git-dir", "--work-tree", "--namespace"]);
 const BLOCKED_GIT_OPTIONS = [/^--output(?:=|$)/, /^--ext-diff$/, /^--external-diff$/];
 
-// Patterns that indicate mutation regardless of the command
-const MUTATION_PATTERNS = [
-  /\b(rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln)\b/,
-  /\b(git\s+(commit|push|checkout|reset|clean|stash|merge|rebase|pull|add|init))\b/,
-  /\b(npm|npx|yarn|pnpm|bun|pip|cargo|go)\s+(install|add|remove|run|build|publish)\b/,
-  /\b(make|cmake|ninja)\b/,
-  /[>|]\s*tee\b/,  // tee used for writing
-  />\s*[^&]/,       // output redirection (but not >&2)
-  /\bsudo\b/,
-  /\bcurl\b.*-[^s]*[oO]/,  // curl with -o/-O (download to file)
-  /\bwget\b/,
-];
+const BLOCKED_SHELL_EXPANSIONS = ["$(", "`", "<(", ">("];
 
 function extractLeadCommand(command: string): string | null {
   const trimmed = command.trim();
@@ -38,6 +27,40 @@ function extractLeadCommand(command: string): string | null {
 
 function words(command: string): string[] {
   return command.trim().split(/\s+/).filter(Boolean);
+}
+
+function hasOutputRedirection(command: string): boolean {
+  let quote: "'" | '"' | null = null;
+  let escaping = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (escaping) {
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+
+    if ((char === "'" || char === '"') && quote === null) {
+      quote = char;
+      continue;
+    }
+
+    if (char === quote) {
+      quote = null;
+      continue;
+    }
+
+    if (quote === null && char === ">" && next !== "&") return true;
+  }
+
+  return false;
 }
 
 function splitShellSegments(command: string): string[] {
@@ -124,10 +147,13 @@ function validateGitCommand(command: string): { ok: boolean; reason?: string } {
 }
 
 export function isReadOnlyCommand(command: string): { ok: boolean; reason?: string } {
-  for (const pattern of MUTATION_PATTERNS) {
-    if (pattern.test(command)) {
-      return { ok: false, reason: `Command matches blocked pattern: ${pattern.source}` };
-    }
+  const blockedExpansion = BLOCKED_SHELL_EXPANSIONS.find((expansion) => command.includes(expansion));
+  if (blockedExpansion) {
+    return { ok: false, reason: `Shell expansion '${blockedExpansion}' is not allowed in read-only mode` };
+  }
+
+  if (hasOutputRedirection(command)) {
+    return { ok: false, reason: "Output redirection is not allowed in read-only mode" };
   }
 
   const segments = splitShellSegments(command);

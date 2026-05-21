@@ -44,15 +44,21 @@ describe("read-only bash validation", () => {
     expectBlocked("git show --ext-diff HEAD");
   });
 
-  it("allows quoted shell metacharacters inside safe commands", () => {
+  it("allows quoted shell metacharacters and mutation words inside safe commands", () => {
     expectAllowed('rg "foo|bar"');
     expectAllowed("rg 'foo;bar'");
     expectAllowed('rg "foo|bar" | head');
+    expectAllowed('rg "touch"');
+    expectAllowed('rg "git add"');
   });
 
   it("blocks shell helpers with command execution features", () => {
     expectBlocked("awk 'BEGIN { system(\"date\") }'");
     expectBlocked("find . -maxdepth 1");
     expectBlocked("echo hi > file");
+    expectBlocked("printf \"$(python -c 'print(1)')\"");
+    expectBlocked("printf `python -c 'print(1)'`");
+    expectBlocked("cat <(python script.py)");
+    expectBlocked("cat >(python script.py)");
   });
 });
