@@ -2,20 +2,17 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { getMarkdownTheme, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext, type MessageRenderOptions, type Theme } from "@mariozechner/pi-coding-agent";
+import { getMarkdownTheme, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type MessageRenderOptions, type Theme } from "@mariozechner/pi-coding-agent";
 import { Container, Key, Markdown, matchesKey, Spacer, TUI, type Component, type Terminal } from "@mariozechner/pi-tui";
 
-import { executeScout } from "../execute.ts";
 import type { ScoutDetails } from "../types.ts";
-import { buildReviewerConfig, type ReviewLens } from "./config.ts";
-import { hasResultText, resultText } from "./result.ts";
+import type { ReviewLens } from "./config.ts";
+import { runReview, selectReviewLenses, type ReviewContext, type ReviewLensSelection, type ReviewMode, type ReviewScoutResult } from "./run.ts";
 import { REVIEWER_TOOL } from "./tool.ts";
-type Lens = "all" | ReviewLens;
-type ReviewContext = "none" | "brief" | "transcript";
 
 type ReviewLensResult = {
   lens: ReviewLens;
-  result: Awaited<ReturnType<typeof executeScout>>;
+  result: ReviewScoutResult;
 };
 
 type ReviewMessageDetails = {
@@ -36,7 +33,7 @@ type ParsedArgs = {
   rest: string[];
   base?: string;
   strict: boolean;
-  lens: Lens;
+  lens: ReviewLensSelection;
   context?: ReviewContext;
   followup: ReviewFollowup;
 };
@@ -89,7 +86,7 @@ function parseArgs(args: string): ParsedArgs {
   const rest: string[] = [];
   let base: string | undefined;
   let strict = false;
-  let lens: Lens = "all";
+  let lens: ReviewLensSelection = "all";
   let context: ReviewContext | undefined;
   let followup: ReviewFollowup = "synthesize";
 
@@ -167,13 +164,6 @@ async function optionalRepoConfig(cwd: string): Promise<string> {
   return "";
 }
 
-function lensesFor(lens: Lens): ReviewLens[] {
-  if (lens === "hickey") return ["hickey"];
-  if (lens === "lowy") return ["lowy"];
-  if (lens === "grug") return ["grug"];
-  return ["hickey", "lowy", "grug"];
-}
-
 function defaultContextFor(subcommand: string): ReviewContext {
   if (subcommand === "design" || subcommand === "plan" || subcommand === "session") return "brief";
   return "none";
@@ -212,13 +202,13 @@ function invalidInvocationText(cwd: string, parsed: ParsedArgs): string {
 }
 
 function helpText(): string {
-  return `Structural review runs the actual Hickey, Lowy, and Grug skills as isolated specialist scouts.
+  return `Structural review runs reviewer-local Hickey, Lowy, and Grug lenses as isolated scouts.
 
-Hickey asks: is this structurally simple? It uses the hickey skill unchanged.
+Hickey asks: is this structurally simple?
 
-Lowy asks: do the boundaries contain change? It uses the lowy skill unchanged.
+Lowy asks: do the boundaries contain change?
 
-Grug asks: does this make the next change smaller in brain? It uses the grug skill unchanged.
+Grug asks: does this make the next change smaller in brain?
 
 How to use it:
 - Current repository: /review or /review repo
@@ -229,9 +219,9 @@ How to use it:
 - Focused audit: /review file <path> or /review boundary <path-or-description>
 
 Modes:
-- default: all three skills, notes mode
-- --strict: tell the skills to use Fix now / No-op dispositions
-- --hickey / --lowy / --grug: run only one skill
+- default: all three lenses, notes mode
+- --strict: tell the lenses to use Fix now / No-op dispositions
+- --hickey / --lowy / --grug: run only one lens
 - --context none|brief|transcript: describe how much context is included; diff/file default to none, design/plan default to brief
 - --base <base>: choose the diff base
 - default follow-up: ask the main agent to synthesize reviewer findings after all selected passes
@@ -305,31 +295,6 @@ async function collectArtifact(cwd: string, parsed: ParsedArgs): Promise<{ subje
   }
 
   throw new Error(invalidInvocationText(cwd, parsed));
-}
-
-function reviewTask(options: {
-  lens: ReviewLens;
-  subcommand: string;
-  subjectLabel: string;
-  subject: string;
-  mode: "notes" | "strict";
-  context: ReviewContext;
-  repoConfig: string;
-}): string {
-  const disposition = options.mode === "strict"
-    ? "Use strict disposition: every real finding must be Fix in this PR / Fix now or No-op. No defer."
-    : "Use notes disposition: separate must-fix findings from advisory notes.";
-
-  return [
-    `Review ${options.subjectLabel}.`,
-    `Artifact source: /review ${options.subcommand}.`,
-    `Artifact type: ${artifactTypeFor(options.subcommand)}.`,
-    `Context mode: ${options.context}.`,
-    disposition,
-    options.repoConfig ? `\n${options.repoConfig}` : "",
-    "\nArtifact:",
-    options.subject,
-  ].join("\n");
 }
 
 function lensListLabel(lenses: ReviewLens[]): string {
@@ -584,7 +549,7 @@ export function registerReviewCommand(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("review", {
-    description: "Gather an artifact and run the hickey/lowy/grug skills in isolated specialist scouts",
+    description: "Gather an artifact and run the hickey/lowy/grug reviewer lenses in isolated scouts",
     getArgumentCompletions: (prefix) => {
       const items = ["repo", "design", "plan", "diff", "staged", "file", "boundary", "help"];
       const filtered = items.filter((item) => item.startsWith(prefix));
@@ -619,14 +584,11 @@ export function registerReviewCommand(pi: ExtensionAPI) {
         }
 
         ctx.ui.setStatus("review", "reviewing…");
-        const mode = parsed.strict ? "strict" : "notes";
+        const mode: ReviewMode = parsed.strict ? "strict" : "notes";
         const context = parsed.context ?? defaultContextFor(parsed.subcommand);
         const repoConfig = await optionalRepoConfig(ctx.cwd);
-        const lenses = lensesFor(parsed.lens);
+        const lenses = selectReviewLenses(parsed.lens);
 
-        const outputs: string[] = [];
-        let usefulOutputCount = 0;
-        const finalResults = new Map<ReviewLens, Awaited<ReturnType<typeof executeScout>>>();
         const liveResults = new Map<ReviewLens, ScoutRenderResult>();
         const liveWidgetRef: { current?: LiveReviewWidget } = {};
         const publishLiveResults = () => {
@@ -639,55 +601,40 @@ export function registerReviewCommand(pi: ExtensionAPI) {
         };
         republishLiveResults = publishLiveResults;
 
-        await Promise.all(lenses.map(async (lens) => {
-          const config = buildReviewerConfig(lens);
-          const result = await executeScout(
-            config,
-            {
-              query: `Review ${subjectLabel} with the ${lens} lens`,
-              task: reviewTask({
-                lens,
-                subcommand: parsed.subcommand,
-                subjectLabel,
-                subject,
-                mode,
-                context,
-                repoConfig,
-              }),
-            },
-            reviewSignal,
-            (update) => {
-              liveResults.set(lens, {
-                content: update.content,
-                details: update.details,
-                isError: false,
-              });
-              publishLiveResults();
-            },
-            ctx as ExtensionContext,
-          );
-          liveResults.set(lens, result);
-          finalResults.set(lens, result);
-          publishLiveResults();
-        }));
+        const review = await runReview({
+          ctx,
+          signal: reviewSignal,
+          lenses,
+          query: `Review ${subjectLabel}.`,
+          artifactSource: `/review ${parsed.subcommand}`,
+          artifactType: artifactTypeFor(parsed.subcommand),
+          context,
+          mode,
+          repoConfig,
+          artifact: subject,
+          onUpdate: (lens, update) => {
+            liveResults.set(lens, {
+              content: update.content,
+              details: update.details,
+              isError: false,
+            });
+            publishLiveResults();
+          },
+        });
 
         liveWidgetRef.current = undefined;
         clearLiveReviewWidget(ctx);
-        for (const lens of lenses) {
-          const result = finalResults.get(lens);
-          if (!result) continue;
-          const output = `# ${lens}\n\n${resultText(result)}`;
-          outputs.push(output);
-          if (hasResultText(result)) usefulOutputCount += 1;
+        for (const execution of review.executions) {
+          const output = `# ${execution.lens}\n\n${execution.output}`;
           pi.sendMessage({
             customType: "review-result",
             content: output,
             display: true,
-            details: { cwd: ctx.cwd, results: [{ lens, result }] } satisfies ReviewMessageDetails,
+            details: { cwd: ctx.cwd, results: [{ lens: execution.lens, result: execution.result }] } satisfies ReviewMessageDetails,
           });
         }
 
-        const prompt = reviewSignal.aborted ? undefined : followupPrompt(parsed, lenses, subjectLabel, usefulOutputCount > 0);
+        const prompt = reviewSignal.aborted ? undefined : followupPrompt(parsed, lenses, subjectLabel, review.hasText);
         if (prompt) {
           pi.sendUserMessage(prompt, { deliverAs: "followUp" });
         }

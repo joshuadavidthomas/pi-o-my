@@ -187,14 +187,6 @@ Query codebases semantically using LLMs. Use when asking questions about librari
 
 Wraps the [btca (Better Context App)](https://btca.dev) CLI tool. Covers installation, resource management (git repos and local codebases), model configuration via OpenCode, and includes example configs with common resources like Svelte and Tailwind.
 
-### [hickey](./skills/hickey/SKILL.md)
-
-Evaluate code for structural simplicity using Rich Hickey's "Simple Made Easy" framework.
-
-### [lowy](./skills/lowy/SKILL.md)
-
-Evaluate architecture and module boundaries for volatility-based decomposition using Juval Lowy's framework.
-
 ### [researching-codebases](./skills/researching-codebases/SKILL.md)
 
 Methodical approach to researching unfamiliar codebases using scout subagents.

@@ -1,13 +1,11 @@
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 
-import { executeScout } from "../execute.ts";
 import { ScoutCall, ScoutResult } from "../render.ts";
-import { computeOverallStatus, trackScoutToolCall } from "../state.ts";
+import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
 import { ModelParam, validateQuery } from "../validate.ts";
-import { buildReviewerConfig, type ReviewLens } from "./config.ts";
-import { resultText } from "./result.ts";
+import { normalizeReviewLenses, runReview, type ReviewContext, type ReviewMode } from "./run.ts";
 
 export const ReviewerParams = Type.Object({
   query: Type.String({
@@ -34,7 +32,7 @@ export const ReviewerParams = Type.Object({
     Type.Array(
       Type.String({ enum: ["hickey", "lowy", "grug", "correctness", "security", "testing", "ux", "maintainability"] }),
       {
-        description: "Review lenses to apply. Defaults to [\"hickey\", \"lowy\", \"grug\"]. Hickey, Lowy, and Grug dispatch to dedicated skills; other lenses are ignored by this scout.",
+        description: "Review lenses to apply. Defaults to [\"hickey\", \"lowy\", \"grug\"]. Hickey, Lowy, and Grug dispatch to reviewer-local lens prompts; other lenses are ignored by this scout.",
         maxItems: 8,
       },
     ),
@@ -66,103 +64,19 @@ export const ReviewerParams = Type.Object({
   model: ModelParam,
 });
 
-function requestedLenses(params: Record<string, unknown>): ReviewLens[] {
-  const raw = Array.isArray(params.lenses) ? params.lenses : [];
-  const lenses = raw.filter((lens): lens is ReviewLens => lens === "hickey" || lens === "lowy" || lens === "grug");
-  return lenses.length > 0 ? [...new Set(lenses)] : ["hickey", "lowy", "grug"];
+function reviewMode(value: unknown): ReviewMode {
+  return value === "strict" ? "strict" : "notes";
 }
 
-function taskFor(lens: ReviewLens, params: Record<string, unknown>): string {
-  const query = String(params.query ?? "").trim();
-  const artifact = typeof params.artifact === "string" ? params.artifact.trim() : "";
-  const artifactType = String(params.artifactType ?? "unspecified").trim();
-  const mode = String(params.mode ?? "notes").trim();
-  const context = String(params.context ?? "brief").trim();
-  const contextText = typeof params.contextText === "string" ? params.contextText.trim() : "";
-  const repoConfig = typeof params.repoConfig === "string" ? params.repoConfig.trim() : "";
-  const disposition = mode === "strict"
-    ? "Use strict disposition: every real finding must be Fix in this PR / Fix now or No-op. No defer."
-    : "Use notes disposition: separate must-fix findings from advisory notes.";
-
-  return [
-    query,
-    "",
-    `Artifact type: ${artifactType}`,
-    `Context mode: ${context}`,
-    disposition,
-    contextText ? `\nContext:\n${contextText}` : "",
-    repoConfig ? `\nRepo-specific review config:\n${repoConfig}` : "",
-    artifact ? `\nArtifact:\n${artifact}` : "",
-  ].join("\n");
-}
-
-function buildConfig(lens: ReviewLens, model?: unknown) {
-  const config = buildReviewerConfig(lens);
-  if (typeof model === "string" && model.trim()) {
-    return { ...config, configuredModel: model.trim(), workload: undefined };
-  }
-  return config;
-}
-
-type LensExecution = {
-  lens: ReviewLens;
-  result: Awaited<ReturnType<typeof executeScout>>;
-  output: string;
-};
-
-function aggregateReviewerDetails(query: string, executions: LensExecution[]): ScoutDetails {
-  const sourceRuns = executions.map((execution) => execution.result.details.runs[0]).filter((run): run is ScoutDetails["runs"][number] => run !== undefined);
-  const status = computeOverallStatus(sourceRuns);
-  const now = Date.now();
-  const startedAt = sourceRuns.length > 0 ? Math.min(...sourceRuns.map((run) => run.startedAt)) : now;
-  const endedTimes = sourceRuns.map((run) => run.endedAt).filter((time): time is number => time !== undefined);
-  const endedAt = status === "running" || endedTimes.length === 0 ? undefined : Math.max(...endedTimes);
-  const provider = sameValue(executions.map((execution) => execution.result.details.subagentProvider));
-  const modelId = sameValue(executions.map((execution) => execution.result.details.subagentModelId));
-  const summaryText = executions.map((execution) => `# ${execution.lens}\n\n${execution.output}`).join("\n\n");
-
-  return {
-    mode: "single",
-    status,
-    subagentProvider: provider,
-    subagentModelId: modelId,
-    runs: [{
-      status,
-      query,
-      turns: sourceRuns.reduce((sum, run) => sum + run.turns, 0),
-      displayItems: [
-        ...executions.map((execution) => ({
-          type: "tool" as const,
-          name: "reviewer",
-          args: {
-            query: execution.result.details.runs[0]?.query ?? `${execution.lens} review`,
-            lenses: [execution.lens],
-          },
-          toolCallId: `reviewer-${execution.lens}`,
-          result: execution.output,
-          isError: execution.result.isError,
-          nestedScout: execution.result.details,
-        })),
-        { type: "text" as const, text: summaryText },
-      ],
-      summaryText,
-      startedAt,
-      endedAt,
-    }],
-  };
-}
-
-function sameValue(values: Array<string | undefined>): string | undefined {
-  const present = values.filter((value): value is string => value !== undefined);
-  if (present.length === 0) return undefined;
-  return present.every((value) => value === present[0]) ? present[0] : undefined;
+function reviewContext(value: unknown): ReviewContext {
+  return value === "none" || value === "brief" || value === "transcript" ? value : "brief";
 }
 
 export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> = {
   name: "reviewer",
   label: "Reviewer",
   description:
-    "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through isolated Hickey, Lowy, and Grug skill passes. Reviewer is for judging artifacts; use finder for locating code and oracle for understanding code before judging it.",
+    "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through isolated Hickey, Lowy, and Grug lens passes. Reviewer is for judging artifacts; use finder for locating code and oracle for understanding code before judging it.",
   parameters: ReviewerParams,
 
   async execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -171,30 +85,25 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
 
     const finishTracking = trackScoutToolCall(toolCallId);
     try {
-      const executions: LensExecution[] = [];
-      const query = String((params as Record<string, unknown>).query ?? "").trim();
+      const values = params as Record<string, unknown>;
+      const review = await runReview({
+        ctx,
+        signal,
+        lenses: normalizeReviewLenses(values.lenses),
+        query: String(values.query ?? "").trim(),
+        artifact: typeof values.artifact === "string" ? values.artifact.trim() : "",
+        artifactType: String(values.artifactType ?? "unspecified").trim(),
+        context: reviewContext(values.context),
+        mode: reviewMode(values.mode),
+        contextText: typeof values.contextText === "string" ? values.contextText.trim() : "",
+        repoConfig: typeof values.repoConfig === "string" ? values.repoConfig.trim() : "",
+        model: values.model,
+      });
 
-      for (const lens of requestedLenses(params as Record<string, unknown>)) {
-        const config = buildConfig(lens, (params as Record<string, unknown>).model);
-
-        const result = await executeScout(
-          config,
-          {
-            query: `Reviewer ${lens}: ${query}`,
-            task: taskFor(lens, params as Record<string, unknown>),
-          },
-          signal,
-          undefined,
-          ctx,
-        );
-        executions.push({ lens, result, output: resultText(result) });
-      }
-
-      const output = executions.map((execution) => `# ${execution.lens}\n\n${execution.output}`).join("\n\n");
       return {
-        content: [{ type: "text", text: output }],
-        details: aggregateReviewerDetails(query, executions),
-        isError: executions.some((execution) => execution.result.isError),
+        content: [{ type: "text", text: review.output }],
+        details: review.details,
+        isError: review.isError,
       };
     } finally {
       finishTracking();
