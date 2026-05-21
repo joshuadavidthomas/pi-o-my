@@ -173,10 +173,6 @@ Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings n
 
 ## Skills
 
-### [ai-writing-tropes](./skills/ai-writing-tropes/SKILL.md)
-
-Detect and eliminate common AI writing tropes from prose. Comprehensive catalog of patterns (word choice, sentence structure, paragraph layout, tone, formatting, composition) that mark AI-generated writing, with a self-check workflow. Source: [tropes.fyi](https://tropes.fyi).
-
 ### [youtube-transcript](./skills/youtube-transcript/SKILL.md)
 
 Extract and work with YouTube video transcripts.
@@ -210,8 +206,6 @@ Tmux skill from [mitsuhiko/agent-stuff](https://github.com/mitsuhiko/agent-stuff
 Notify pi extension from [pi-coding-agent examples](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions) (MIT, Mario Zechner).
 
 Scouts pi extension from [default-anton/pi-finder](https://github.com/default-anton/pi-finder), [default-anton/pi-librarian](https://github.com/default-anton/pi-librarian), and [default-anton/pi-subagent-model-selection](https://github.com/default-anton/pi-subagent-model-selection) (MIT, Anton Kuzmenko).
-
-AI writing tropes skill from [Xe/site](https://github.com/Xe/site) (zlib, Christine Dodrill). Content sourced from [tropes.fyi](https://tropes.fyi).
 
 Peon-ping pi extension uses the [peon-ping](https://github.com/PeonPing/peon-ping) sound pack registry and [OpenPeon](https://github.com/PeonPing/og-packs) sound packs (CC-BY-NC-4.0).
 
