@@ -32,6 +32,8 @@ This is not a demand for TLA+ on every change. It asks whether the artifact has 
 
 Review the artifact for whether its behavior model is precise enough to support its correctness claims.
 
+First apply the jurisdiction test: this lens applies only when the artifact changes or claims behavior involving state, transitions, invariants, concurrency/failure, authorization/session properties, or progress. If the artifact is static prose, formatting, a simple pure function, or a local refactor with no behavior-state claim, say `Not applicable` and do not invent a state machine.
+
 For a diff, inspect changed state, transitions, guards, persistence, errors, retries, and enough call sites to know which states are reachable. For a plan or design, inspect the proposed model before implementation details: state variables, initial conditions, transitions, invariants, failure cases, and progress claims.
 
 High-signal cases, when they involve state, transition, invariant, or progress correctness claims:
@@ -99,12 +101,14 @@ Ask:
 
 - What must never happen?
 - Which invariant is this code preserving?
+- What authorization invariant must hold: who may perform which transition on which subject or object?
+- Can privilege be gained through replay, stale session state, cache lag, reordering, retry, partial failure, or confused subject/object identity?
 - Does every transition preserve it?
 - Are checks placed before or after the state change that could violate the invariant?
 - Does error handling preserve the invariant?
 - Do tests assert the invariant or only exercise examples?
 
-A finding is strongest when it shows a reachable state that violates a required property.
+A finding is strongest when it shows a reachable state that violates a required property. When possible, express it as a trace: start in state S0, apply step A, then step B repeats/races/fails/is cancelled, reach S_bad, name the violated property, and name the missing guard, state, or transition.
 
 ### 5. Check liveness and fairness only when progress is claimed
 
@@ -130,11 +134,25 @@ Ask:
 - Are tests named around properties and transitions, or around incidental implementation paths?
 - If the model changed, were the tests, types, docs, and guards updated together?
 
+### 7. Set severity
+
+Use must-fix only when the artifact creates or relies on one of these behavior-model risks:
+
+- a required invariant can be violated
+- an illegal or "impossible" state is reachable
+- a transition is missing, ambiguous, or incorrectly allowed
+- retry, cancellation, concurrency, duplicate delivery, or partial failure can cause duplicate, lost, corrupted, stale, or unauthorized effects
+- a claimed progress guarantee can stall indefinitely under allowed behavior
+- the concrete implementation permits behavior the model forbids
+- the artifact makes a safety or progress claim that cannot be evaluated because the relevant model is missing
+
+Everything else is advisory.
+
 ## Common Findings
 
 ### Vague model
 
-The artifact changes behavior but never states the state, transitions, or properties being preserved. Recommend writing the smallest precise model before changing more code.
+The artifact makes a correctness claim about stateful behavior, but the relevant state, transition, invariant, or progress assumption is too ambiguous to judge that claim. Recommend writing the smallest precise model needed to decide the claim; do not ask for a spec merely because none exists.
 
 ### Missing state
 
@@ -147,6 +165,10 @@ The code permits a combination or transition the domain forbids. Recommend tight
 ### Invariant not preserved
 
 A transition can violate a required property. Recommend naming the invariant and changing the transition so every step preserves it.
+
+### Authorization invariant not preserved
+
+A transition can be performed by the wrong actor, on the wrong subject/object, or after session/permission state has changed. Recommend naming the authorization invariant and enforcing it across retries, replays, stale caches, and partial failures.
 
 ### Progress by hope
 
@@ -165,6 +187,11 @@ A symptom is fixed locally while the behavior model remains ambiguous, allowing 
 Use this structure:
 
 ```markdown
+## Applicability
+
+- Applicable / Not applicable.
+- Jurisdiction reason: state / transition / invariant / authorization / concurrency-failure / progress claim.
+
 ## Behavior model
 
 - State variables:
@@ -180,6 +207,7 @@ Use this structure:
 
 ## Counterexamples / model gaps
 
+- Trace: S0 -> event/step -> S1 -> event/step -> bad state or ambiguity.
 - Reachable bad states:
 - Ambiguous or missing transitions:
 - Unchecked interleavings/failures:
@@ -189,9 +217,9 @@ Use this structure:
 ### Must-fix
 
 1. **Finding title**
-   - Model element: state / transition / invariant / liveness / implementation relation.
+   - Model element: state / transition / invariant / authorization invariant / liveness / implementation relation.
    - Evidence: file paths / lines / behavior.
-   - Counterexample: reachable bad behavior or ambiguity.
+   - Counterexample trace: S0 -> step -> S1 -> step -> bad state, or the precise model gap that prevents judging safety.
    - Required property: what must hold.
    - Better model/fix: ...
 
@@ -212,14 +240,15 @@ Use this structure:
 - **Finding title** — Fix in this PR / No-op / Advisory.
 ```
 
-If there are no findings in a section, say `None`.
+If the lens is not applicable, use the Applicability section to say why, then put `None` for the remaining sections. If the lens is applicable but there are no findings in a section, say `None`.
 
 ## Quality Bar
 
 - Do not require TLA+ or formal notation by default.
 - Do not treat passing tests as proof that the model is correct.
 - Do not complain about missing specs unless behavior precision matters to the artifact.
-- Do not invent impossible interleavings; show how the state is reachable or name the missing assumption.
+- Do not apply this lens to static prose, formatting, simple pure functions, or local refactors with no behavior-state claim.
+- Do not invent impossible interleavings; show the counterexample trace or name the missing assumption/model gap.
 - Do not overfit to implementation detail when a simpler abstract model explains the behavior.
 - Do not make liveness findings unless the artifact claims progress.
 - Do not accept "cannot happen" without a state or transition argument.
