@@ -5,18 +5,22 @@ import { ScoutCall, ScoutResult } from "../render.ts";
 import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
 import { makeErrorResult, ModelParam, validateQuery } from "../validate.ts";
-import { REVIEW_LENSES } from "./config.ts";
-import { normalizeReviewLenses, REVIEW_ARTIFACT_TYPES, runReview, type ReviewArtifactType, type ReviewContext, type ReviewMode } from "./run.ts";
+import { isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
+import { REVIEW_ARTIFACT_TYPES, runReviewLens, type ReviewArtifactType, type ReviewContext, type ReviewMode } from "./run.ts";
 
 export const ReviewerParams = Type.Object({
   query: Type.String({
     description: [
       "Write a complete review brief for the Reviewer scout.",
-      "Include what artifact is being reviewed, desired lenses, constraints, and what kind of output is useful.",
+      "Include what artifact is being reviewed, the constraints, and what kind of output is useful.",
       "Reviewer is for judging a concrete artifact, not open-ended exploration. Use finder/oracle first if you do not yet know what to review.",
-      "Good: 'Review this diff for Hickey structural simplicity and Lowy volatility boundaries. Strict mode. Focus on changed files and surrounding module context.'",
+      "Good: 'Review this diff for Hickey structural simplicity. Strict mode. Focus on changed files and surrounding module context.'",
       "Bad: 'look around and tell me what to improve'",
     ].join("\n"),
+  }),
+  lens: Type.String({
+    enum: [...REVIEW_LENSES],
+    description: "Single review lens to run. For multiple independent lenses, issue multiple reviewer tool calls in the same assistant turn, one per lens.",
   }),
   artifact: Type.Optional(
     Type.String({
@@ -28,15 +32,6 @@ export const ReviewerParams = Type.Object({
       enum: [...REVIEW_ARTIFACT_TYPES],
       description: "Type of artifact being reviewed. Helps the reviewer choose evidence rules and scope.",
     }),
-  ),
-  lenses: Type.Optional(
-    Type.Array(
-      Type.String({ enum: [...REVIEW_LENSES] }),
-      {
-        description: "Review lenses to apply. Defaults to all supported reviewer-local lenses.",
-        maxItems: 8,
-      },
-    ),
   ),
   mode: Type.Optional(
     Type.String({
@@ -79,23 +74,21 @@ function reviewArtifactType(value: unknown): ReviewArtifactType {
     : "other";
 }
 
-function titleSuffixForLenses(raw: unknown): string | undefined {
-  try {
-    const lenses = normalizeReviewLenses(raw);
-    return lenses.length === 1 ? lenses[0] : undefined;
-  } catch {
-    return undefined;
-  }
+function reviewLens(value: unknown): ReviewLens | undefined {
+  return isReviewLens(value) ? value : undefined;
 }
 
 export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> = {
   name: "reviewer",
   label: "Reviewer",
   description:
-    "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through isolated Hickey, Lowy, and Grug lens passes. Reviewer is for judging artifacts; use finder for locating code and oracle for understanding code before judging it.",
+    "Adversarial artifact review scout. Use after a concrete artifact exists — diff, plan, design sketch, file/module, or session brief — to judge it through one isolated reviewer lens. For multi-lens reviews, call reviewer multiple times in the same assistant turn, one call per lens. Use finder for locating code and oracle for understanding code before judging it.",
+  promptGuidelines: [
+    "The reviewer tool runs exactly one lens per call. For a Hickey + Lowy + Grug review, emit three parallel reviewer tool calls with lens set to hickey, lowy, and grug. Do not pass arrays of lenses.",
+  ],
   parameters: ReviewerParams,
 
-  async execute(toolCallId, params, signal, _onUpdate, ctx) {
+  async execute(toolCallId, params, signal, onUpdate, ctx) {
     const error = validateQuery(params);
     if (error) return error;
 
@@ -103,17 +96,15 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
     try {
       const values = params as Record<string, unknown>;
       const query = String(values.query ?? "").trim();
-      let lenses: ReturnType<typeof normalizeReviewLenses>;
-      try {
-        lenses = normalizeReviewLenses(values.lenses);
-      } catch (error) {
-        return makeErrorResult(error instanceof Error ? error.message : String(error), query);
+      const lens = reviewLens(values.lens);
+      if (!lens) {
+        return makeErrorResult(`Unsupported reviewer lens: ${String(values.lens)}. Supported lenses: ${REVIEW_LENSES.join(", ")}.`, query);
       }
 
-      const review = await runReview({
+      const review = await runReviewLens({
         ctx,
         signal,
-        lenses,
+        lens,
         query,
         artifact: typeof values.artifact === "string" ? values.artifact.trim() : "",
         artifactType: reviewArtifactType(values.artifactType),
@@ -122,12 +113,13 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
         contextText: typeof values.contextText === "string" ? values.contextText.trim() : "",
         repoConfig: typeof values.repoConfig === "string" ? values.repoConfig.trim() : "",
         model: values.model,
+        onUpdate: (update) => onUpdate?.({ content: update.content, details: update.details }),
       });
 
       return {
         content: [{ type: "text", text: review.output }],
-        details: review.details,
-        isError: review.isError,
+        details: review.result.details,
+        isError: review.result.isError,
       };
     } finally {
       finishTracking();
@@ -135,12 +127,12 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
   },
 
   renderCall(args, theme, context) {
-    const titleSuffix = titleSuffixForLenses((args as Record<string, unknown>).lenses);
+    const titleSuffix = reviewLens((args as Record<string, unknown>).lens);
     return new ScoutCall("reviewer", { theme, executionStarted: context.executionStarted, titleSuffix });
   },
 
   renderResult(result, options, theme, context) {
-    const titleSuffix = titleSuffixForLenses((context.args as Record<string, unknown>).lenses);
+    const titleSuffix = reviewLens((context.args as Record<string, unknown>).lens);
     const component = context.lastComponent instanceof ScoutResult
       ? context.lastComponent
       : new ScoutResult(result, options, theme, "reviewer", titleSuffix);

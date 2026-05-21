@@ -372,7 +372,7 @@ function reviewerToolArgs(lens: ReviewLens, result: ScoutRenderResult): Record<s
   const run = result.details.runs[0];
   return {
     query: run?.query ?? `Review with the ${lens} lens`,
-    lenses: [lens],
+    lens,
   };
 }
 
@@ -637,7 +637,7 @@ export function registerReviewCommand(pi: ExtensionAPI) {
             liveResults.set(lens, {
               content: update.content,
               details: update.details,
-              isError: false,
+              isError: update.details.status === "error",
             });
             publishLiveResults();
           },

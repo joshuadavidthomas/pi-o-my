@@ -91,22 +91,54 @@ class RawText implements Component {
   }
 }
 
+const runningStatusComponents = new Set<WeakRef<RunningStatusText>>();
+let runningStatusTicker: ReturnType<typeof setInterval> | undefined;
+
+function startRunningStatusTicker(): void {
+  if (runningStatusTicker) return;
+
+  runningStatusTicker = setInterval(() => {
+    let hasActiveComponent = false;
+    for (const ref of [...runningStatusComponents]) {
+      const component = ref.deref();
+      if (!component || !component.isRunning()) {
+        runningStatusComponents.delete(ref);
+        continue;
+      }
+
+      hasActiveComponent = true;
+      component.tick();
+    }
+
+    if (!hasActiveComponent && runningStatusTicker) {
+      clearInterval(runningStatusTicker);
+      runningStatusTicker = undefined;
+    }
+  }, RUNNING_SPINNER_INTERVAL_MS);
+}
+
 class RunningStatusText extends Text {
   private theme?: Theme;
   private run?: ScoutRunDetails;
   private hasToolCalls = false;
   private suffix?: string;
+  private requestRender?: () => void;
+  private tickerRef?: WeakRef<RunningStatusText>;
+  private running = false;
 
   constructor() {
     super("", 0, 0);
   }
 
-  update(run: ScoutRunDetails, hasToolCalls: boolean, theme: Theme, _requestRender?: () => void, suffix?: string): void {
+  update(run: ScoutRunDetails, hasToolCalls: boolean, theme: Theme, requestRender?: () => void, suffix?: string): void {
     this.run = run;
     this.hasToolCalls = hasToolCalls;
     this.theme = theme;
+    this.requestRender = requestRender;
     this.suffix = suffix;
+    this.running = true;
     this.updateDisplay();
+    this.syncTicker();
   }
 
   override invalidate(): void {
@@ -114,7 +146,36 @@ class RunningStatusText extends Text {
     this.updateDisplay();
   }
 
-  stop(): void {}
+  stop(): void {
+    this.running = false;
+    this.requestRender = undefined;
+    if (this.tickerRef) {
+      runningStatusComponents.delete(this.tickerRef);
+      this.tickerRef = undefined;
+    }
+  }
+
+  isRunning(): boolean {
+    return this.running && this.requestRender !== undefined;
+  }
+
+  tick(): void {
+    this.updateDisplay();
+    this.requestRender?.();
+  }
+
+  private syncTicker(): void {
+    if (!this.requestRender) {
+      this.stop();
+      return;
+    }
+
+    if (!this.tickerRef) {
+      this.tickerRef = new WeakRef(this);
+      runningStatusComponents.add(this.tickerRef);
+    }
+    startRunningStatusTicker();
+  }
 
   private updateDisplay(): void {
     if (!this.run || !this.theme) return;

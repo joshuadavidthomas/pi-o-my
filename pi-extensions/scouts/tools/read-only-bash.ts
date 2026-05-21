@@ -8,8 +8,8 @@ import { createBashTool } from "@mariozechner/pi-coding-agent";
 // Commands read-only scouts are allowed to run
 const ALLOWED_COMMANDS = new Set([
   "rg", "fd", "ls", "cat", "wc", "head", "tail", "file", "stat", "nl",
-  "find", "tree", "du", "grep", "awk", "sed", "sort", "uniq", "cut",
-  "tr", "diff", "comm", "tee", "xargs", "echo", "printf", "test",
+  "find", "tree", "du", "grep", "awk", "sort", "uniq", "cut",
+  "tr", "diff", "comm", "echo", "printf", "test",
   "basename", "dirname", "realpath", "readlink",
 ]);
 
@@ -65,7 +65,7 @@ export function createReadOnlyBashTool(cwd: string) {
   return {
     ...baseTool,
     name: "bash",
-    description: "Execute read-only bash commands (rg, fd, ls, cat, wc, head, tail, file, stat, nl, find, tree, grep, sort, uniq, cut, diff). No writes, installs, or mutations allowed.",
+    description: "Execute read-only bash commands (rg, fd, ls, cat, wc, head, tail, file, stat, nl, find, tree, grep, awk, sort, uniq, cut, diff). No writes, installs, or mutations allowed.",
 
     async execute(...args: Parameters<typeof baseTool.execute>) {
       const [toolCallId, params, signal, onUpdate] = args;

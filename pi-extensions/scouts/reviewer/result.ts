@@ -2,14 +2,23 @@ import { executeScout } from "../execute.ts";
 
 type ReviewScoutResult = Awaited<ReturnType<typeof executeScout>>;
 
+function primaryText(result: ReviewScoutResult): string {
+  return result.content?.find((item) => item.type === "text")?.text?.trim() ?? "";
+}
+
 export function hasResultText(result: ReviewScoutResult): boolean {
-  const text = result.content?.find((item) => item.type === "text")?.text?.trim();
-  return !!text && !text.endsWith("(no output)");
+  if (result.details.status === "running") return false;
+
+  const summary = result.details.runs[0]?.summaryText?.trim();
+  if (summary !== undefined) return summary !== "" && summary !== "(no output)" && summary !== "(searching...)";
+
+  const text = primaryText(result);
+  return text !== "" && text !== "(no output)" && text !== "(searching...)";
 }
 
 export function resultText(result: ReviewScoutResult): string {
-  const text = result.content?.find((item) => item.type === "text")?.text?.trim();
-  if (hasResultText(result)) return text!;
+  const text = primaryText(result);
+  if (hasResultText(result)) return text;
 
   const run = result.details.runs[0];
   const model = result.details.subagentProvider && result.details.subagentModelId

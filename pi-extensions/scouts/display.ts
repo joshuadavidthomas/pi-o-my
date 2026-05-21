@@ -71,8 +71,12 @@ export function extractDisplayItems(messages: readonly AgentMessage[]): DisplayI
 export function formatToolCallParts(name: string, args: Record<string, unknown>): { label: string; summary: string } {
   switch (name) {
     case "reviewer": {
-      const lenses = Array.isArray(args.lenses) ? args.lenses.filter((lens): lens is string => typeof lens === "string") : [];
-      const label = lenses.length === 1 ? `reviewer ${lenses[0]}` : "reviewer";
+      const lens = typeof args.lens === "string"
+        ? args.lens
+        : Array.isArray(args.lenses) && typeof args.lenses[0] === "string"
+          ? args.lenses[0]
+          : undefined;
+      const label = lens ? `reviewer ${lens}` : "reviewer";
       const query = typeof args.query === "string" ? args.query.trim() : "";
       return { label, summary: shortenPaths(query) };
     }
