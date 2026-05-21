@@ -20,8 +20,6 @@ import type {
 import {
   SessionManager,
   createAgentSession,
-  createBashTool,
-  createReadTool,
   type ResourceLoader,
 } from "@mariozechner/pi-coding-agent";
 
@@ -144,29 +142,39 @@ export function bumpDefaultEventTargetMaxListeners(): () => void {
   };
 }
 
-function prepareScoutTools(config: ScoutConfig, cwd: string, ctx?: ExtensionContext): {
+export const SCOUT_CUSTOM_TOOL_MARKER = "__scoutCustomTool";
+
+export function prepareScoutTools(config: ScoutConfig, cwd: string, ctx?: ExtensionContext): {
   builtinTools: BuiltinToolName[];
   customTools: ToolDefinition[];
 } {
   const allTools = config.createTools
     ? config.createTools(cwd, ctx)
-    : [createReadTool(cwd), createBashTool(cwd)];
+    : [{ name: "read" }, { name: "bash" }];
 
   const builtinTools = allTools
-    .filter((tool: any): tool is { name: BuiltinToolName } => BUILTIN_TOOL_NAMES.has(tool.name))
+    .filter((tool: any): tool is { name: BuiltinToolName } => BUILTIN_TOOL_NAMES.has(tool.name) && tool[SCOUT_CUSTOM_TOOL_MARKER] !== true)
     .map((tool) => tool.name);
   const customTools = allTools
-    .filter((tool: any) => !BUILTIN_TOOL_NAMES.has(tool.name))
-    .map((tool: any): ToolDefinition => ({
-      name: tool.name,
-      label: tool.label,
-      description: tool.description,
-      parameters: tool.parameters,
-      execute: (toolCallId, params, signal, onUpdate) =>
-        tool.execute(toolCallId, params, signal, onUpdate),
-    }));
+    .filter((tool: any) => !BUILTIN_TOOL_NAMES.has(tool.name) || tool[SCOUT_CUSTOM_TOOL_MARKER] === true)
+    .map(toToolDefinition);
 
   return { builtinTools, customTools };
+}
+
+function toToolDefinition(tool: any): ToolDefinition {
+  return {
+    name: tool.name,
+    label: tool.label,
+    description: tool.description,
+    promptSnippet: tool.promptSnippet,
+    promptGuidelines: tool.promptGuidelines,
+    parameters: tool.parameters,
+    prepareArguments: tool.prepareArguments,
+    executionMode: tool.executionMode,
+    execute: (toolCallId, params, signal, onUpdate) =>
+      tool.execute(toolCallId, params, signal, onUpdate),
+  };
 }
 
 class ScoutWorkflow {

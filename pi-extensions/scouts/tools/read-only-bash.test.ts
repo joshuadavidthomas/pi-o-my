@@ -43,4 +43,9 @@ describe("read-only bash validation", () => {
     expectBlocked("git diff --output=/tmp/diff.txt main...HEAD");
     expectBlocked("git show --ext-diff HEAD");
   });
+
+  it("blocks shell helpers with command execution features", () => {
+    expectBlocked("awk 'BEGIN { system(\"date\") }'");
+    expectBlocked("find . -maxdepth 1");
+  });
 });

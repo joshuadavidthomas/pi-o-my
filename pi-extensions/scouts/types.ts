@@ -51,7 +51,8 @@ export interface ScoutConfig {
   buildUserPrompt: (params: Record<string, unknown>) => string;
   /**
    * Override the default tool set. If provided, replaces the defaults entirely.
-   * Built-in tools (name matches allTools) go to `tools`, others go to `customTools`.
+   * Tool wrappers can mark themselves as scout custom tools to keep their
+   * execute path even when their names match built-ins.
    */
   createTools?: (cwd: string, ctx?: import("@mariozechner/pi-coding-agent").ExtensionContext) => any[];
 }
