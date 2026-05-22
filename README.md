@@ -202,6 +202,10 @@ Tracks `SKILL.md` reads and writes aggregate skill usage stats to `~/.pi/agent/s
 
 Starship-style custom footer with model context, git status, costs, and token stats.
 
+#### [titlebar-spinner](./extensions/titlebar-spinner.ts)
+
+Shows a braille spinner in the terminal title while the agent is working, then restores the title to `π - <cwd>` or `π - <session> - <cwd>` when idle.
+
 #### [system-prompt-heading-levels](./extensions/system-prompt-heading-levels.ts)
 
 Demotes Markdown headings inside loaded context files, so `AGENTS.md` headings nest under Pi's system prompt sections instead of competing with them.
