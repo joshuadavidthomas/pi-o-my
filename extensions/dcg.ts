@@ -116,6 +116,8 @@ const getBashOutputText = (content: Array<TextContent | ImageContent> | undefine
   sanitizeBinaryOutput(stripAnsi(extractTextContent(content))).replace(/\r/g, "");
 
 const BASH_PREVIEW_LINES = 5;
+const DCG_DECISION_TIMEOUT_MS = 2 * 60 * 1000;
+const DCG_DECISION_TIMEOUT_SECONDS = DCG_DECISION_TIMEOUT_MS / 1000;
 
 const buildBashOutputComponent = (
   output: string,
@@ -193,6 +195,8 @@ class DcgDecisionComponent implements Component {
   private showDetails = false;
   private cachedWidth?: number;
   private cachedLines?: string[];
+  private done = false;
+  private readonly timeoutHandle: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly data: {
@@ -207,6 +211,7 @@ class DcgDecisionComponent implements Component {
     private readonly theme: any,
     private readonly onDone: (result: DcgDecision | null) => void,
   ) {
+    this.timeoutHandle = setTimeout(() => this.finish("deny"), DCG_DECISION_TIMEOUT_MS);
     this.rebuild();
   }
 
@@ -219,7 +224,7 @@ class DcgDecisionComponent implements Component {
 
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-      this.onDone("deny");
+      this.finish("deny");
       return;
     }
 
@@ -300,9 +305,9 @@ class DcgDecisionComponent implements Component {
         return;
       }
 
-      this.onDone(item.value as DcgDecision);
+      this.finish(item.value as DcgDecision);
     };
-    this.selectList.onCancel = () => this.onDone("deny");
+    this.selectList.onCancel = () => this.finish("deny");
 
     if (previousSelection) {
       const index = items.findIndex((item) => item.value === previousSelection);
@@ -318,10 +323,17 @@ class DcgDecisionComponent implements Component {
     this.container.addChild(this.selectList);
     const hintLine =
       this.mode === "scope"
-        ? "↑↓ navigate • enter confirm • esc deny"
-        : "↑↓ navigate • enter confirm • esc deny • e details";
+        ? `↑↓ navigate • enter confirm • esc deny • auto-deny in ${DCG_DECISION_TIMEOUT_SECONDS}s`
+        : `↑↓ navigate • enter confirm • esc deny • e details • auto-deny in ${DCG_DECISION_TIMEOUT_SECONDS}s`;
     this.container.addChild(new Text(this.theme.fg("dim", hintLine), 1, 0));
     this.container.addChild(new DynamicBorder((text: string) => this.theme.fg("accent", text)));
+  }
+
+  private finish(result: DcgDecision | null): void {
+    if (this.done) return;
+    this.done = true;
+    clearTimeout(this.timeoutHandle);
+    this.onDone(result);
   }
 
   private getDecisionItems(): SelectItem[] {
