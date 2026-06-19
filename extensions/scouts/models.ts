@@ -66,28 +66,6 @@ function parseModelTarget(modelId: string | undefined): ModelTarget | null {
   };
 }
 
-// Infer a model's family from its ID prefix. Used by cross-family diversity
-// resolution. Extend when new families appear — unrecognized IDs return
-// undefined and skip diversity resolution entirely.
-function inferFamily(modelId: string): string | undefined {
-  const id = modelId.toLowerCase();
-  if (id.startsWith("claude-")) return "anthropic";
-  if (id.startsWith("gpt-")) return "openai";
-  if (id.startsWith("gemini-")) return "google";
-  if (id.startsWith("glm-")) return "zai";
-  return undefined;
-}
-
-// Maps a current model family to one or more partner families for cross-family
-// second opinions. When multiple partners are listed, one is chosen at random
-// per scout invocation.
-export const ORACLE_FAMILY_PARTNERS: Record<string, string[]> = {
-  anthropic: ["openai"],
-  openai: ["anthropic"],
-  google: ["openai", "anthropic"],
-  zai: ["openai"],
-};
-
 // Family-level provider preference. Internal policy-driven scout resolution uses
 // this order when it wants a model family; explicit user-qualified overrides
 // like `anthropic/claude-opus-4-6` still stay exact.
@@ -202,52 +180,6 @@ function resolvePreferredProviderTarget(
       ...target,
       provider: candidateProvider,
     });
-    if (match) return match;
-  }
-
-  return null;
-}
-
-// Resolve a model from a partner family for cross-family diversity.
-// Prefers the current session's provider when it can serve the partner family
-// (keeps auth/billing lane), otherwise uses the partner family's native
-// provider entry. Returns null when nothing matches — callers are expected to
-// fall back to in-family workload resolution.
-export function resolveDiversityModel(
-  modelRegistry: ModelRegistry,
-  currentModel: Model<Api> | undefined,
-  workload: ScoutWorkload,
-  partners: Record<string, string[]>,
-  policy: WorkloadModelPolicy = DEFAULT_WORKLOAD_MODEL_POLICY,
-): ResolvedWorkloadModel | null {
-  if (!currentModel) return null;
-
-  const currentFamily = inferFamily(currentModel.id);
-  if (!currentFamily) return null;
-
-  const candidates = partners[currentFamily];
-  if (!candidates?.length) return null;
-
-  const partnerFamily = candidates[Math.floor(Math.random() * candidates.length)]!;
-
-  const currentProvider = currentModel.provider.toLowerCase();
-  const sameProviderTarget = policy.targetsByProvider[currentProvider]?.[workload];
-  if (sameProviderTarget && inferFamily(sameProviderTarget.modelId) === partnerFamily) {
-    const match = resolveTarget(modelRegistry, currentModel, {
-      ...sameProviderTarget,
-      provider: currentProvider,
-    });
-    if (match) return match;
-  }
-
-  const crossProviderTarget = policy.targetsByProvider[partnerFamily]?.[workload];
-  if (crossProviderTarget) {
-    const match = resolvePreferredProviderTarget(
-      modelRegistry,
-      currentModel,
-      crossProviderTarget,
-      partnerFamily,
-    );
     if (match) return match;
   }
 

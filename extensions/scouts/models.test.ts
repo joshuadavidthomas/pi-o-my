@@ -3,12 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 
-import {
-  ORACLE_FAMILY_PARTNERS,
-  resolveDiversityModel,
-  resolveWorkloadModel,
-  type ScoutWorkload,
-} from "./models.ts";
+import { resolveWorkloadModel, type ScoutWorkload } from "./models.ts";
 
 const authStorage = AuthStorage.inMemory({
   openai: { type: "api_key", key: "test-openai" },
@@ -243,111 +238,19 @@ describe("scout model selection from a main session", () => {
     expect(deep?.model.id).toBe("claude-opus-4-7");
   });
 
-  it("oracle diversity: anthropic session partners with the preferred openai-family provider", () => {
-    const current = getCurrentModel("anthropic", "claude-opus-4-7");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
+  it("oracle deep workload stays in the current model family", () => {
+    const anthropic = resolveForMainSession(getCurrentModel("anthropic", "claude-opus-4-7"), "deep");
+    const openai = resolveForMainSession(getCurrentModel("openai", "gpt-5.4"), "deep");
+    const google = resolveForMainSession(getCurrentModel("google", "gemini-2.5-pro"), "deep");
 
-    expect(result).not.toBeNull();
-    expect(result?.model.provider).toBe("openai-codex");
-    expect(result?.model.id).toBe("gpt-5.5");
-    expect(result?.thinkingLevel).toBe("high");
-  });
+    expect(anthropic?.model.provider).toBe("claude-agent-sdk");
+    expect(anthropic?.model.id).toBe("claude-opus-4-7");
 
-  it("oracle diversity: claude-agent-sdk session partners with openai-family instead of staying on claude-agent-sdk", () => {
-    const current = getCurrentModel("claude-agent-sdk", "claude-opus-4-7");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
+    expect(openai?.model.provider).toBe("openai-codex");
+    expect(openai?.model.id).toBe("gpt-5.5");
 
-    expect(result).not.toBeNull();
-    expect(result?.model.provider).toBe("openai-codex");
-    expect(result?.model.id).toBe("gpt-5.5");
-    expect(result?.thinkingLevel).toBe("high");
-  });
-
-  it("oracle diversity: claude-agent-sdk session falls back to another openai-family provider before staying in-family", () => {
-    const partialAuthStorage = AuthStorage.inMemory({
-      "openai-codex": { type: "api_key", key: "test-openai-codex" },
-      anthropic: { type: "api_key", key: "test-anthropic" },
-      google: { type: "api_key", key: "test-google" },
-      "github-copilot": { type: "api_key", key: "test-github-copilot" },
-    });
-    const partialRegistry = ModelRegistry.inMemory(partialAuthStorage);
-    partialRegistry.registerProvider("claude-agent-sdk", {
-      baseUrl: "https://claude-agent-sdk.test",
-      apiKey: "test-claude-agent-sdk",
-      api: "anthropic-messages",
-      models: [
-        {
-          id: "claude-haiku-4-5",
-          name: "Claude Haiku 4.5 (Claude Agent SDK)",
-          reasoning: true,
-          input: ["text", "image"],
-          cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
-          contextWindow: 200000,
-          maxTokens: 64000,
-        },
-        {
-          id: "claude-sonnet-4-6",
-          name: "Claude Sonnet 4.6 (Claude Agent SDK)",
-          reasoning: true,
-          input: ["text", "image"],
-          cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-          contextWindow: 200000,
-          maxTokens: 64000,
-        },
-        {
-          id: "claude-opus-4-7",
-          name: "Claude Opus 4.7 (Claude Agent SDK)",
-          reasoning: true,
-          input: ["text", "image"],
-          cost: { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-          contextWindow: 200000,
-          maxTokens: 64000,
-        },
-      ],
-    });
-
-    const current = getCurrentModel("claude-agent-sdk", "claude-opus-4-7", partialRegistry);
-    const result = resolveDiversityModel(partialRegistry, current, "deep", ORACLE_FAMILY_PARTNERS);
-
-    expect(result).not.toBeNull();
-    if (!result) throw new Error("expected diversity model");
-    expect(["openai-codex", "github-copilot"]).toContain(result.model.provider);
-    expect(result.model.id).toBe("gpt-5.5");
-  });
-
-  it("oracle diversity: openai session prefers claude-agent-sdk for anthropic partner models", () => {
-    const current = getCurrentModel("openai", "gpt-5.4");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
-
-    expect(result).not.toBeNull();
-    expect(result?.model.provider).toBe("claude-agent-sdk");
-    expect(result?.model.id).toBe("claude-opus-4-7");
-    expect(result?.thinkingLevel).toBe("high");
-  });
-
-  it("oracle diversity: openai-codex session prefers claude-agent-sdk for anthropic partner models", () => {
-    const current = getCurrentModel("openai-codex", "gpt-5.4");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
-
-    expect(result).not.toBeNull();
-    expect(result?.model.provider).toBe("claude-agent-sdk");
-    expect(result?.model.id).toBe("claude-opus-4-7");
-  });
-
-  it("oracle diversity: google session partners with openai or the preferred anthropic provider", () => {
-    const current = getCurrentModel("google", "gemini-2.5-pro");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
-
-    expect(result).not.toBeNull();
-    if (!result) throw new Error("expected diversity model");
-    expect(["openai-codex", "openai", "claude-agent-sdk"]).toContain(result.model.provider);
-  });
-
-  it("oracle diversity: unknown family returns null so caller falls back in-family", () => {
-    const current = getCurrentModel("mistral", "devstral-medium-latest");
-    const result = resolveDiversityModel(registry, current, "deep", ORACLE_FAMILY_PARTNERS);
-
-    expect(result).toBeNull();
+    expect(google?.model.provider).toBe("google");
+    expect(google?.model.id).toBe("gemini-3.1-pro-preview");
   });
 
   it("resolves bare Claude family aliases to current model IDs", () => {

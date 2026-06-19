@@ -41,10 +41,6 @@ export interface ScoutConfig {
   configuredModel?: string;
   /** Optional scout workload. Drives provider-preserving profile selection when no explicit model override is set. */
   workload?: ScoutWorkload;
-  /** Optional family→partner map for cross-family diversity. When set and no
-   *  explicit/configured override applies, the scout tries a partner-family
-   *  model before falling back to the in-family workload resolution. */
-  diversityPartners?: Record<string, string[]>;
   /** Default thinking level. Overrides the selected model's default when set. */
   defaultThinkingLevel?: ThinkingLevel;
   buildSystemPrompt: (maxTurns: number) => string;
