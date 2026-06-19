@@ -92,7 +92,7 @@ export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
     // auth itself via OAuth credentials from `claude auth login`, and
     // createSdkEnv() strips ANTHROPIC_API_KEY before spawning the subprocess.
     // The field is here only to satisfy pi's registration validation.
-    apiKey: "ANTHROPIC_API_KEY",
+    apiKey: "$ANTHROPIC_API_KEY",
     api: API_ID,
     models: PROVIDER_MODELS,
     streamSimple: (model, context, options) => {

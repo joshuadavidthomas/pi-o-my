@@ -24,7 +24,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS, scoutDetailsFromUnknown } from "./display.ts";
-import { resolveDiversityModel, resolveWorkloadModel } from "./models.ts";
+import { resolveWorkloadModel } from "./models.ts";
 import { createScoutResourceLoader } from "./resources.ts";
 import { computeOverallStatus, createInitialRun } from "./state.ts";
 import type { ScoutConfig, ScoutDetails } from "./types.ts";
@@ -223,21 +223,6 @@ class ScoutWorkflow {
         resolvedRunPlan = {
           model: explicitMatch.model,
           thinkingLevel: config.defaultThinkingLevel ?? explicitMatch.thinkingLevel,
-        };
-      }
-    }
-
-    if (!resolvedRunPlan && config.diversityPartners && config.workload && ctx.model) {
-      const diversityMatch = resolveDiversityModel(
-        ctx.modelRegistry,
-        ctx.model,
-        config.workload,
-        config.diversityPartners,
-      );
-      if (diversityMatch) {
-        resolvedRunPlan = {
-          model: diversityMatch.model,
-          thinkingLevel: config.defaultThinkingLevel ?? diversityMatch.thinkingLevel,
         };
       }
     }
