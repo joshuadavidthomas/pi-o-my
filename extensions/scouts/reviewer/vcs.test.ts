@@ -38,6 +38,7 @@ describe("review vcs selection", () => {
       await git(root, ["init"]);
       await git(root, ["config", "user.email", "review@example.test"]);
       await git(root, ["config", "user.name", "Review Test"]);
+      await git(root, ["config", "commit.gpgsign", "false"]);
       await writeFile(join(root, "tracked.txt"), "initial\n");
       await git(root, ["add", "tracked.txt"]);
       await git(root, ["commit", "-m", "initial"]);
