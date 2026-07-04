@@ -11,7 +11,7 @@ export const ORACLE_TOOL: ToolDefinition<typeof OracleParams, ScoutDetails> = {
   name: "oracle",
   label: "Oracle",
   description:
-    "Deep code analysis scout. Use when you need to understand HOW code works — trace data flow, analyze architecture, find patterns, or get implementation details with precise file:line references. Oracle reads code deeply and reasons about it. For finding WHERE code is, use finder instead. Usually omit the optional `model` parameter unless the user explicitly asked for a specific model/provider.",
+    "Deep code analysis scout. Use when you need to understand HOW code works — trace data flow, analyze architecture, find patterns, or get implementation details with precise file:line references. Oracle reads code deeply and reasons about it. For finding WHERE code is, use finder instead.",
   parameters: OracleParams,
 
   async execute(toolCallId, params, signal, onUpdate, ctx) {

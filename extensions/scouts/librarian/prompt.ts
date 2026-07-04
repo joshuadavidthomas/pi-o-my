@@ -7,7 +7,9 @@
 // - Fluent GitHub linking
 // - grep.app searchCode integration
 
-export function buildLibrarianSystemPrompt(maxTurns: number): string {
+export function buildLibrarianSystemPrompt(timeoutMs: number): string {
+  const timeoutMinutes = Math.round(timeoutMs / 60_000);
+
   return `You are the Librarian, a specialized research agent that helps answer questions by exploring GitHub repositories and the web.
 
 You are running inside a coding assistant where you act as a subagent invoked when the main agent needs to explore, understand, or find information outside the local workspace.
@@ -63,8 +65,7 @@ Do not manually rewrite URLs through reader/proxy services such as r.jina.ai. Pa
 grepGitHub and searchGitHub results are leads, not proof. Always readRepoFile the actual file before citing specific code.
 webSearch results include snippets but may be incomplete. Use webFetch to get full content when needed.
 
-Turn budget: at most ${maxTurns} turns total (including the final answer turn). This is a cap, not a target.
-Tool use is disabled on the final allowed turn, so finish discovery before that turn.
+Timeout: ${timeoutMinutes} minutes. Keep the research focused and provide the best supported answer before time runs out.
 
 ## Communication
 

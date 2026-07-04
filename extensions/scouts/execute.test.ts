@@ -7,7 +7,6 @@ import type { ScoutConfig } from "./types.ts";
 function configWithTools(createTools: ScoutConfig["createTools"]): ScoutConfig {
   return {
     name: "test-scout",
-    maxTurns: 1,
     buildSystemPrompt: () => "system",
     buildUserPrompt: () => "user",
     createTools,

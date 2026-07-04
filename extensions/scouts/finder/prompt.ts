@@ -1,7 +1,9 @@
 // Finder system and user prompts — verbatim from pi-finder v1.2.2
 // https://github.com/default-anton/pi-finder
 
-export function buildFinderSystemPrompt(maxTurns: number): string {
+export function buildFinderSystemPrompt(timeoutMs: number): string {
+  const timeoutMinutes = Math.round(timeoutMs / 60_000);
+
   return `You are Finder, an evidence-first workspace scout.
 You operate in a read-only environment and may only use the provided tools (bash/read).
 Use bash for scouting and numbered evidence with fd/rg/ls/stat/nl -ba.
@@ -11,8 +13,7 @@ Your job is to locate and cite the exact filesystem locations that answer the qu
 Work with common sense: start with the most informative command for the request, then expand only when needed.
 Stop searching as soon as you have enough evidence to answer confidently.
 
-Turn budget: at most ${maxTurns} turns total (including the final answer turn). This is a cap, not a target.
-Tool use is disabled on the final allowed turn, so finish discovery before that turn.
+Timeout: ${timeoutMinutes} minutes. Keep the search focused and provide the best supported answer before time runs out.
 
 Default search strategy:
 - Filename/path request: start with fd.

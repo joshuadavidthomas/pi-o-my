@@ -32,7 +32,6 @@ export type RunReviewOptions = {
   artifactSource?: string;
   contextText?: string;
   repoConfig?: string;
-  model?: unknown;
   onUpdate?: (lens: ReviewLens, update: ReviewScoutUpdate) => void;
 };
 
@@ -52,7 +51,7 @@ export function selectReviewLenses(selection: ReviewLensSelection): ReviewLens[]
   return selection === "all" ? [...REVIEW_LENSES] : [selection];
 }
 
-export function buildReviewTask(options: Omit<RunReviewOptions, "ctx" | "signal" | "lenses" | "model" | "onUpdate">): string {
+export function buildReviewTask(options: Omit<RunReviewOptions, "ctx" | "signal" | "lenses" | "onUpdate">): string {
   const disposition = options.mode === "strict"
     ? "Use strict disposition: every real finding must be Fix in this PR / Fix now or No-op. No defer."
     : "Use notes disposition: separate must-fix findings from advisory notes.";
@@ -71,12 +70,13 @@ export function buildReviewTask(options: Omit<RunReviewOptions, "ctx" | "signal"
 
 export async function runReviewLens(options: RunReviewLensOptions): Promise<ReviewLensExecution> {
   const task = buildReviewTask(options);
+  const params: Record<string, unknown> = {
+    query: reviewLensQuery(options.lens, options.query),
+    task,
+  };
   const result = await executeScout(
-    buildConfig(options.lens, options.model),
-    {
-      query: reviewLensQuery(options.lens, options.query),
-      task,
-    },
+    buildReviewerConfig(options.lens),
+    params,
     options.signal,
     options.onUpdate,
     options.ctx,
@@ -102,14 +102,6 @@ export async function runReview(options: RunReviewOptions): Promise<RunReviewRes
 
 function reviewLensQuery(lens: ReviewLens, query: string): string {
   return `Reviewer ${lens}: ${query}`;
-}
-
-function buildConfig(lens: ReviewLens, model?: unknown) {
-  const config = buildReviewerConfig(lens);
-  if (typeof model === "string" && model.trim()) {
-    return { ...config, configuredModel: model.trim(), workload: undefined };
-  }
-  return config;
 }
 
 function createReviewLensExecution(lens: ReviewLens, result: ReviewScoutResult): ReviewLensExecution {

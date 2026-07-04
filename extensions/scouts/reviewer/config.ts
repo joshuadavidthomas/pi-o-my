@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createReadTool, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { createFactCheckTool } from "./tools/fact-check.ts";
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
 import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "../specialist/prompt.ts";
 import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
@@ -31,9 +32,8 @@ export function buildReviewerConfig(lens: ReviewLens): ScoutConfig {
 
   return {
     name: `reviewer:${lens}`,
-    maxTurns: 24,
-    workload: "balanced",
-    buildSystemPrompt: (maxTurns) => buildSpecialistSystemPrompt(content, maxTurns, LENSES_DIR),
+    modelTargets: SCOUT_MODEL_TARGETS.reviewer,
+    buildSystemPrompt: (timeoutMs) => buildSpecialistSystemPrompt(content, timeoutMs, LENSES_DIR),
     buildUserPrompt: buildSpecialistUserPrompt,
     createTools: (cwd, ctx) => [
       createReadTool(cwd),

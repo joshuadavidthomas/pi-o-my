@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
-import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-coding-agent";
 import { parse as parseYaml } from "yaml";
 
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import { loadScoutSkills } from "../resources.ts";
 import type { ScoutConfig } from "../types.ts";
-import { ModelParam } from "../validate.ts";
 import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "./prompt.ts";
 
 export type SpecialistTool = "read" | "bash" | "write" | "edit";
@@ -31,7 +31,6 @@ export const SpecialistParams = Type.Object({
       { description: "Tools the specialist can use. Defaults to [\"read\", \"bash\"]. Add \"write\" and \"edit\" for tasks that need to modify files." },
     ),
   ),
-  model: ModelParam,
 });
 
 const DEFAULT_TOOLS: SpecialistTool[] = ["read", "bash"];
@@ -82,11 +81,10 @@ export async function buildSpecialistConfig(
 
   return {
     name: configName,
-    maxTurns: 16,
     configuredModel: frontmatterModel,
-    workload: frontmatterModel ? undefined : "deep",
+    modelTargets: SCOUT_MODEL_TARGETS.specialist,
     defaultThinkingLevel: (fm["thinking-level"] as ThinkingLevel) || undefined,
-    buildSystemPrompt: (maxTurns) => buildSpecialistSystemPrompt(content, maxTurns, match.baseDir),
+    buildSystemPrompt: (timeoutMs) => buildSpecialistSystemPrompt(content, timeoutMs, match.baseDir),
     buildUserPrompt: buildSpecialistUserPrompt,
     createTools: (runtimeCwd) => {
       const toolBuilders: Record<SpecialistTool, () => any> = {

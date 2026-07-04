@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
-import { ModelParam } from "../validate.ts";
 import { buildLibrarianSystemPrompt, buildLibrarianUserPrompt } from "./prompt.ts";
 import { createGrepGitHubTool } from "./tools/grep-app.ts";
 import { createGitHubTools } from "./tools/github.ts";
@@ -42,13 +42,11 @@ export const LibrarianParams = Type.Object({
       default: DEFAULT_MAX_SEARCH_RESULTS,
     }),
   ),
-  model: ModelParam,
 });
 
 export const LIBRARIAN_CONFIG: ScoutConfig = {
   name: "librarian",
-  maxTurns: 12,
-  workload: "balanced",
+  modelTargets: SCOUT_MODEL_TARGETS.librarian,
   buildSystemPrompt: buildLibrarianSystemPrompt,
   buildUserPrompt: buildLibrarianUserPrompt,
   createTools: (_cwd) => [

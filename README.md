@@ -64,7 +64,7 @@ When the assistant asks multiple questions, `/answer` (or `Ctrl+.`) extracts the
 
 #### [custom-provider-claude-agent-sdk](./extensions/custom-provider-claude-agent-sdk/)
 
-Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider and mirrors pi's built-in Anthropic Claude model list, so model IDs look like `claude-agent-sdk/claude-sonnet-4-6`.
+Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider and mirrors pi's built-in Anthropic Claude model list, so model IDs look like `claude-agent-sdk/claude-sonnet-5`.
 
 The provider runs one live streaming SDK query per active pi session/branch. Claude sees pi tools through an in-process MCP server, but pi still executes the tools, renders them, records tool calls/results, and applies its normal permission and extension hooks. Built-in Claude Code tools are disabled so tool execution stays pi-native.
 
@@ -168,20 +168,34 @@ Adds `/share-md`, which exports the active session branch as Markdown and upload
 Scout subagent system — spins up focused sessions with purpose-built tool sets, returning structured results with custom TUI rendering. Originally vendored from [pi-finder](https://github.com/default-anton/pi-finder) and [pi-librarian](https://github.com/default-anton/pi-librarian), now significantly expanded.
 
 Features:
-- **Workload-based model selection**: Each scout declares a `fast`, `balanced`, or `deep` workload. Per-call `model` overrides are available for explicit retries or user-requested providers.
-- **Provider-preserving routing**: Scout model selection stays in the current provider family when possible, with configured fallbacks when a workload is unavailable.
+- **Fixed model defaults with fallbacks**: Each scout declares an ordered target list. The first available model wins. Use Pi-specific config for model routing instead of per-call model overrides.
+- **User model config**: Override scout model target lists globally with `~/.pi/agent/scouts.jsonc` or per project with `.pi/scouts.jsonc` in the current directory or an ancestor.
 - **Interleaved TUI rendering**: Tool calls and text render chronologically with collapsible markdown output.
-- **Turn budget enforcement**: Blocks tool use on the final turn to force a summary response.
+- **Timeout enforcement**: Scouts run with a 10-minute wall-clock timeout by default.
 
-Registers seven tools:
+Model config example:
 
-- **finder** (fast): Workspace scout — locates files, directories, and components when exact locations are unknown.
-- **librarian** (balanced): External research scout — searches GitHub repos and the web, fetches code and documentation.
-- **oracle** (deep): Deep code analysis scout — traces data flow, analyzes architecture, finds patterns with precise file:line references. Read-only with a restricted bash allowlist.
-- **specialist** (deep by default): Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set.
-- **reviewer** (balanced): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through one review lens per call: Hickey structural simplicity, Lowy volatility-based decomposition, Grug smol-brain changeability, Beck tidy-first change economics, Muratori semantic compression and actual work visibility, Lamport state-space and invariant reasoning, Ousterhout deep-module change complexity, or Feathers legacy-change safety. For multi-lens reviews, call `reviewer` multiple times in parallel.
-- **validator** (fast): Verification scout — runs noisy tests, builds, linters, typecheckers, repro commands, and logs, then returns a compact pass/fail report without editing files.
-- **worker** (balanced): Bounded implementation worker — applies a concrete implementation brief with read/edit/write/bash tools, then reports changed files and verification. Use finder/oracle/librarian before worker when the target or design is unclear; only one mutating worker runs at a time.
+```jsonc
+{
+  "scouts": {
+    "oracle": {
+      "models": [
+        { "model": "openai-codex/gpt-5.5", "thinkingLevel": "high" },
+        { "model": "openai/gpt-5.5", "thinkingLevel": "high" }
+      ]
+    }
+  }
+}
+```
+
+Registers six tools:
+
+- **finder**: Workspace scout — locates files, directories, and components when exact locations are unknown.
+- **librarian**: External research scout — searches GitHub repos and the web, fetches code and documentation.
+- **oracle**: Deep code analysis scout — traces data flow, analyzes architecture, finds patterns with precise file:line references. Read-only with a restricted bash allowlist.
+- **specialist**: Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set. Skill frontmatter can set its preferred model.
+- **reviewer**: Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through one review lens per call: Hickey structural simplicity, Lowy volatility-based decomposition, Grug smol-brain changeability, Beck tidy-first change economics, Muratori semantic compression and actual work visibility, Lamport state-space and invariant reasoning, Ousterhout deep-module change complexity, or Feathers legacy-change safety. For multi-lens reviews, call `reviewer` multiple times in parallel.
+- **worker**: Bounded implementation worker — applies a concrete implementation brief or validation-only task with read/edit/write/bash tools, then reports changed files and verification. Supports `effort: "quick" | "standard" | "thorough"` to set low/medium/high reasoning for the implementation pass. It stops when the bounded task is complete, blocked, out of scope, or the 10-minute timeout is reached. Use finder/oracle/librarian before worker when the target or design is unclear; only one worker runs at a time.
 
 Also registers `/review`, a command that gathers an artifact and calls the reviewer scout directly:
 

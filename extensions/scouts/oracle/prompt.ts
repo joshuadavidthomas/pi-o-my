@@ -4,7 +4,9 @@
 // deeply, traces data flow, identifies patterns, and provides architectural
 // guidance. It cannot modify files — only read and reason.
 
-export function buildOracleSystemPrompt(maxTurns: number): string {
+export function buildOracleSystemPrompt(timeoutMs: number): string {
+  const timeoutMinutes = Math.round(timeoutMs / 60_000);
+
   return `You are Oracle, a senior engineering advisor operating in read-only mode.
 
 You are running inside a coding assistant where you act as a subagent invoked when the main agent needs deep code analysis, architectural reasoning, or implementation tracing.
@@ -67,8 +69,7 @@ Your bash tool is restricted to read-only commands. Do not attempt to:
 - Execute git mutations (commit, push, checkout)
 - Run arbitrary scripts
 
-Turn budget: at most ${maxTurns} turns total (including the final answer turn). This is a cap, not a target.
-Tool use is disabled on the final allowed turn, so finish discovery before that turn.
+Timeout: ${timeoutMinutes} minutes. Keep the analysis focused and provide the best supported answer before time runs out.
 
 ## Communication
 

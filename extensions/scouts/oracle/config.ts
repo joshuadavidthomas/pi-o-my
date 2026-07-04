@@ -2,8 +2,8 @@ import { Type } from "typebox";
 
 import { createReadTool } from "@earendil-works/pi-coding-agent";
 
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
-import { ModelParam } from "../validate.ts";
 import { buildOracleSystemPrompt, buildOracleUserPrompt } from "./prompt.ts";
 import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
 
@@ -19,14 +19,12 @@ export const OracleParams = Type.Object({
       "- 'Find all implementations of the Repository pattern and show how they handle errors.'",
     ].join("\n"),
   }),
-  model: ModelParam,
 });
 
 // Base config without tools — tools need cwd at runtime
 const ORACLE_BASE_CONFIG: Omit<ScoutConfig, "createTools"> = {
   name: "oracle",
-  maxTurns: 12,
-  workload: "deep",
+  modelTargets: SCOUT_MODEL_TARGETS.oracle,
   buildSystemPrompt: buildOracleSystemPrompt,
   buildUserPrompt: buildOracleUserPrompt,
 };

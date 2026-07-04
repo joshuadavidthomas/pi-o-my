@@ -1,18 +1,28 @@
 import { Type } from "typebox";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-coding-agent";
 
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
-import { ModelParam } from "../validate.ts";
 import { buildWorkerSystemPrompt, buildWorkerUserPrompt } from "./prompt.ts";
+
+export const WORKER_EFFORTS = ["quick", "standard", "thorough"] as const;
+export type WorkerEffort = (typeof WORKER_EFFORTS)[number];
+
+export function workerThinkingLevel(effort: unknown): ThinkingLevel {
+  if (effort === "quick") return "low";
+  if (effort === "thorough") return "high";
+  return "medium";
+}
 
 export const WorkerParams = Type.Object({
   query: Type.String({
     description: [
-      "Complete implementation brief for the Worker subagent.",
-      "Use worker only after the main agent/orchestrator has decided what to change. Worker is for bounded implementation, mechanical edits, and running requested verification — not open-ended discovery or architecture planning.",
-      "Include the desired end state, relevant files/components, constraints, and what should not change.",
+      "Complete implementation or validation brief for the Worker subagent.",
+      "Use worker when the concrete change or verification target is already known. Worker is for bounded implementation, mechanical edits, and running requested verification — not open-ended discovery or architecture planning.",
+      "Include the desired end state, relevant files/components, constraints, and what should not change. For validation-only tasks, state that no edits should be made.",
       "For research or code understanding, use finder/oracle/librarian before worker.",
-      "Example: 'Implement the validator scout. Add config/prompt/tool files, register it in index.ts, update README, and follow existing scout patterns.'",
+      "Example: 'Update the scout model resolver. Change models.ts and related tests, then run the scout test suite.'",
     ].join("\n"),
   }),
   allowedPaths: Type.Optional(
@@ -27,13 +37,19 @@ export const WorkerParams = Type.Object({
       maxItems: 20,
     }),
   ),
-  model: ModelParam,
+  effort: Type.Optional(
+    Type.String({
+      enum: [...WORKER_EFFORTS],
+      description: "Implementation effort. Controls the worker model's reasoning level: quick uses low reasoning for small/local edits, standard uses medium reasoning, and thorough uses high reasoning for deeper in-scope implementation and broader validation.",
+      default: "standard",
+    }),
+  ),
 });
 
 export const WORKER_CONFIG: ScoutConfig = {
   name: "worker",
-  maxTurns: 18,
-  workload: "balanced",
+  thinkingLevelForParams: (params) => workerThinkingLevel(params.effort),
+  modelTargets: SCOUT_MODEL_TARGETS.worker,
   buildSystemPrompt: buildWorkerSystemPrompt,
   buildUserPrompt: buildWorkerUserPrompt,
   createTools: (cwd) => [

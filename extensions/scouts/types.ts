@@ -1,8 +1,8 @@
 // Shared types for scout subagents.
 
-import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 
-import type { ScoutWorkload } from "./models.ts";
+import type { ScoutModelTarget } from "./models.ts";
 
 type ScoutStatus = "running" | "done" | "error" | "aborted";
 type ScoutActivityPhase = "thinking" | "calling_tools" | "writing_summary";
@@ -34,16 +34,21 @@ export interface ScoutDetails {
   runs: ScoutRunDetails[];
 }
 
+export const DEFAULT_SCOUT_TIMEOUT_MS = 10 * 60 * 1000;
+
 export interface ScoutConfig {
   name: string;
-  maxTurns: number;
-  /** Optional fixed model for this scout config. Used before workload resolution. */
+  /** Wall-clock timeout in milliseconds. Defaults to 10 minutes. */
+  timeoutMs?: number;
+  /** Optional dynamic thinking level. Used for scout-specific effort knobs. */
+  thinkingLevelForParams?: (params: Record<string, unknown>) => ThinkingLevel | undefined;
+  /** Optional fixed model for this scout config. Tried before configured/default target lists. */
   configuredModel?: string;
-  /** Optional scout workload. Drives provider-preserving profile selection when no explicit model override is set. */
-  workload?: ScoutWorkload;
+  /** Ordered scout model targets. The first available target wins. */
+  modelTargets?: ScoutModelTarget[];
   /** Default thinking level. Overrides the selected model's default when set. */
   defaultThinkingLevel?: ThinkingLevel;
-  buildSystemPrompt: (maxTurns: number) => string;
+  buildSystemPrompt: (timeoutMs: number) => string;
   buildUserPrompt: (params: Record<string, unknown>) => string;
   /**
    * Override the default tool set. If provided, replaces the defaults entirely.

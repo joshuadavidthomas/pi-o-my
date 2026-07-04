@@ -1,7 +1,7 @@
 // Scout session lifecycle — execute a scout subagent from config to result.
 //
 // Handles session creation, model resolution with fallback, abort propagation,
-// turn budget enforcement, event tracking, and final result construction.
+// timeout enforcement, event tracking, and final result construction.
 
 import { randomBytes } from "node:crypto";
 import events from "node:events";
@@ -9,12 +9,12 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Api, Model, ThinkingLevel } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
   AgentSession,
   AgentSessionEvent,
   ExtensionContext,
-  ExtensionFactory,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -24,41 +24,13 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { extractDisplayItems, extractToolResultText, getAssistantText, getLastAssistantText, MAX_DISPLAY_ITEMS, scoutDetailsFromUnknown } from "./display.ts";
-import { resolveWorkloadModel } from "./models.ts";
+import { defaultModelTargetsForScout, formatModelTarget, parseModelTarget, resolveFirstAvailableModelTarget, type ScoutModelTarget } from "./models.ts";
+import { loadScoutUserConfig, ScoutUserConfigError } from "./user-config.ts";
 import { createScoutResourceLoader } from "./resources.ts";
 import { computeOverallStatus, createInitialRun } from "./state.ts";
-import type { ScoutConfig, ScoutDetails } from "./types.ts";
+import { DEFAULT_SCOUT_TIMEOUT_MS, type ScoutConfig, type ScoutDetails } from "./types.ts";
 
 type ScoutRunDetails = ScoutDetails["runs"][number];
-
-// Turn budget extension — blocks tool use on the final turn
-export function createTurnBudgetExtension(maxTurns: number): ExtensionFactory {
-  return (pi) => {
-    let turnIndex = 0;
-
-    pi.on("turn_start", async (event) => {
-      turnIndex = event.turnIndex;
-    });
-
-    pi.on("tool_call", async () => {
-      if (turnIndex < maxTurns - 1) return undefined;
-      const humanTurn = Math.min(turnIndex + 1, maxTurns);
-      return {
-        block: true,
-        reason: `Tool use is disabled on the final turn (turn ${humanTurn}/${maxTurns}). Provide your final answer now without calling tools.`,
-      };
-    });
-
-    pi.on("tool_result", async (event) => {
-      const remainingAfter = Math.max(0, maxTurns - (turnIndex + 1));
-      const humanTurn = Math.min(turnIndex + 1, maxTurns);
-      const budgetLine = `[turn budget] turn ${humanTurn}/${maxTurns}; remaining after this turn: ${remainingAfter}`;
-      return {
-        content: [...(event.content ?? []), { type: "text", text: `\n\n${budgetLine}` }],
-      };
-    });
-  };
-}
 
 // EventTarget max listeners management for nested sessions
 const DEFAULT_EVENTTARGET_MAX_LISTENERS = 100;
@@ -93,6 +65,12 @@ function appendSummaryNotice(output: string, summaryPath: string | undefined): s
   }
 
   return `Summary ${notice}\n${output}`;
+}
+
+function formatDuration(ms: number): string {
+  const minutes = ms / 60_000;
+  if (Number.isInteger(minutes)) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  return `${Math.round(ms / 1000)} seconds`;
 }
 
 type EventTargetMaxListenersState = { depth: number; savedDefault?: number };
@@ -178,7 +156,7 @@ function toToolDefinition(tool: any): ToolDefinition {
 }
 
 class ScoutWorkflow {
-  private readonly maxTurns: number;
+  private readonly timeoutMs: number;
   private readonly query: string;
   private readonly userPrompt: string;
   private readonly systemPrompt: string;
@@ -192,6 +170,7 @@ class ScoutWorkflow {
   private currentModel?: Model<Api>;
   private abortRequested = false;
   private abortSignalListener?: () => void;
+  private abortReason = "Aborted";
   private lastUpdateAt = 0;
 
   constructor(
@@ -201,51 +180,48 @@ class ScoutWorkflow {
     private readonly onUpdate: ((update: ScoutUpdate) => void) | undefined,
     private readonly ctx: ExtensionContext,
   ) {
-    this.maxTurns = config.maxTurns;
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_SCOUT_TIMEOUT_MS;
     this.query = String(params.query ?? "");
     this.userPrompt = config.buildUserPrompt(params);
-    this.systemPrompt = config.buildSystemPrompt(this.maxTurns);
+    this.systemPrompt = config.buildSystemPrompt(this.timeoutMs);
     this.runs = [createInitialRun(this.query)];
 
-    const explicitModelId = typeof params.model === "string" ? params.model.trim() : undefined;
-    const configuredModel = config.configuredModel?.trim();
-
     let resolvedRunPlan: ScoutRunPlan | null = null;
+    let requestedTargets: ScoutModelTarget[] = [];
 
-    const overrideModelId = explicitModelId || configuredModel;
-    if (overrideModelId) {
-      const explicitMatch = resolveWorkloadModel(ctx.modelRegistry, ctx.model, {
-        explicitModelId: overrideModelId,
-        provider: ctx.model?.provider ?? "",
-        workload: config.workload ?? "balanced",
-      });
-      if (explicitMatch) {
-        resolvedRunPlan = {
-          model: explicitMatch.model,
-          thinkingLevel: config.defaultThinkingLevel ?? explicitMatch.thinkingLevel,
-        };
+    try {
+      const scoutName = config.name.split(":", 1)[0] ?? config.name;
+      const userConfig = loadScoutUserConfig(ctx.cwd);
+      const configuredTarget = parseModelTarget(config.configuredModel);
+      requestedTargets = [
+        ...(configuredTarget ? [configuredTarget] : []),
+        ...(userConfig.modelTargetsByScout[scoutName as keyof typeof userConfig.modelTargetsByScout]
+          ?? config.modelTargets
+          ?? defaultModelTargetsForScout(config.name)),
+      ];
+    } catch (error) {
+      if (error instanceof ScoutUserConfigError) {
+        this.planningError = error.message;
+        this.runPlans = [];
+        return;
       }
+      throw error;
     }
 
-    if (!resolvedRunPlan && config.workload && ctx.model?.provider) {
-      const workloadMatch = resolveWorkloadModel(ctx.modelRegistry, ctx.model, {
-        provider: ctx.model.provider,
-        workload: config.workload,
-      });
-      if (workloadMatch) {
-        resolvedRunPlan = {
-          model: workloadMatch.model,
-          thinkingLevel: config.defaultThinkingLevel ?? workloadMatch.thinkingLevel,
-        };
-      }
+    const targetMatch = resolveFirstAvailableModelTarget(ctx.modelRegistry, ctx.model, requestedTargets);
+    if (targetMatch) {
+      resolvedRunPlan = {
+        model: targetMatch.model,
+        thinkingLevel: config.thinkingLevelForParams?.(params) ?? config.defaultThinkingLevel ?? targetMatch.thinkingLevel,
+      };
     }
 
     if (!resolvedRunPlan) {
       const available = ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`);
-      const requested = overrideModelId
-        ?? (config.workload ? `workload ${config.workload} on provider ${ctx.model?.provider ?? "(none)"}` : undefined)
-        ?? "the current scout model selection";
-      this.planningError = `No compatible model found for ${requested}. Available: ${available.length ? available.join(", ") : "none (configure credentials via /login or auth.json)"}`;
+      const requested = requestedTargets.length > 0
+        ? requestedTargets.map(formatModelTarget).join(", ")
+        : "the current scout model selection";
+      this.planningError = `No compatible model found for requested scout target(s): ${requested}. Available: ${available.length ? available.join(", ") : "none (configure credentials via /login or auth.json)"}`;
       this.runPlans = [];
       return;
     }
@@ -271,6 +247,7 @@ class ScoutWorkflow {
 
     this.phase = "running";
     const detachAbortHandling = this.attachAbortHandling();
+    const detachTimeout = this.attachTimeout();
     try {
       for (const runPlan of this.runPlans) {
         const shouldContinue = await this.runPlannedRun(runPlan);
@@ -280,6 +257,7 @@ class ScoutWorkflow {
       this.phase = "finished";
       return this.buildResult();
     } finally {
+      detachTimeout();
       detachAbortHandling();
     }
   }
@@ -356,7 +334,7 @@ class ScoutWorkflow {
     if (!this.signal) return () => {};
 
     this.abortSignalListener = () => {
-      void this.abort();
+      void this.abort("Aborted");
     };
     this.signal.addEventListener("abort", this.abortSignalListener);
 
@@ -367,9 +345,21 @@ class ScoutWorkflow {
     };
   }
 
-  private async abort(): Promise<void> {
+  private attachTimeout(): () => void {
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) return () => {};
+
+    const timeout = setTimeout(() => {
+      void this.abort(`Timed out after ${formatDuration(this.timeoutMs)}`);
+    }, this.timeoutMs);
+    timeout.unref?.();
+
+    return () => clearTimeout(timeout);
+  }
+
+  private async abort(reason = "Aborted"): Promise<void> {
     if (this.abortRequested) return;
     this.abortRequested = true;
+    this.abortReason = reason;
     this.phase = "aborting";
 
     const run = this.currentRun();
@@ -388,7 +378,7 @@ class ScoutWorkflow {
   private markRunAborted(run: ScoutRunDetails): void {
     if (run.status !== "running") return;
     run.status = "aborted";
-    run.summaryText = run.summaryText ?? "Aborted";
+    run.summaryText = run.summaryText ?? this.abortReason;
     run.endedAt = Date.now();
   }
 
@@ -409,7 +399,7 @@ class ScoutWorkflow {
       this.completeSuccessfulRun(run, scoutSession);
       return false;
     } catch (error) {
-      const message = this.wasAborted() ? "Aborted" : error instanceof Error ? error.message : String(error);
+      const message = this.wasAborted() ? this.abortReason : error instanceof Error ? error.message : String(error);
       this.completeFailedRun(run, message);
       return !this.wasAborted() && this.hasAnotherRunAfter(runPlan);
     } finally {
@@ -429,7 +419,7 @@ class ScoutWorkflow {
       cwd: this.ctx.cwd,
       noSkills: true,
       allowExtensions: shouldLoadScoutExtensions(runPlan.model.provider),
-      extensionFactories: [createTurnBudgetExtension(this.maxTurns)],
+      extensionFactories: [],
       systemPromptOverride: () => this.systemPrompt,
       skillsOverride: () => ({ skills: [], diagnostics: [] }),
     });
@@ -562,11 +552,13 @@ class ScoutWorkflow {
     run.displayItems = extractDisplayItems(session.state.messages);
     run.activityPhase = undefined;
     run.activityText = undefined;
-    run.summaryText = getLastAssistantText(session.state.messages).trim();
-    if (!run.summaryText) {
-      run.summaryText = this.wasAborted() ? "Aborted" : "(no output)";
+    if (this.wasAborted()) {
+      run.summaryText = this.abortReason;
+      run.status = "aborted";
+    } else {
+      run.summaryText = getLastAssistantText(session.state.messages).trim() || "(no output)";
+      run.status = "done";
     }
-    run.status = this.wasAborted() ? "aborted" : "done";
     run.endedAt = Date.now();
     this.publishUpdate(true);
   }

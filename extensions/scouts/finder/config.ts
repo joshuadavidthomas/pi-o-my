@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 
+import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
-import { ModelParam } from "../validate.ts";
 import { buildFinderSystemPrompt, buildFinderUserPrompt } from "./prompt.ts";
 
 export const FinderParams = Type.Object({
@@ -15,13 +15,11 @@ export const FinderParams = Type.Object({
       "- Personal: 'In ~/Documents and ~/Desktop, find my latest trip itinerary PDF and list the top candidate paths with evidence.'",
     ].join("\n"),
   }),
-  model: ModelParam,
 });
 
 export const FINDER_CONFIG: ScoutConfig = {
   name: "finder",
-  maxTurns: 6,
-  workload: "fast",
+  modelTargets: SCOUT_MODEL_TARGETS.finder,
   buildSystemPrompt: buildFinderSystemPrompt,
   buildUserPrompt: buildFinderUserPrompt,
 };

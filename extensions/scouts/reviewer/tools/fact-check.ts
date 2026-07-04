@@ -2,6 +2,7 @@ import { createReadTool, type ExtensionContext, type ToolDefinition } from "@ear
 import { Type } from "typebox";
 
 import { executeScout } from "../../execute.ts";
+import { SCOUT_MODEL_TARGETS } from "../../models.ts";
 import { createReadOnlyBashTool } from "../../tools/read-only-bash.ts";
 import type { ScoutConfig } from "../../types.ts";
 
@@ -95,8 +96,7 @@ function factCheckUserPrompt(params: Record<string, unknown>): string {
 
 const factCheckConfig: ScoutConfig = {
   name: "fact-check",
-  maxTurns: 10,
-  workload: "fast",
+  modelTargets: SCOUT_MODEL_TARGETS["fact-check"],
   buildSystemPrompt: () => FACT_CHECK_PROMPT,
   buildUserPrompt: factCheckUserPrompt,
   createTools: (cwd) => [createReadTool(cwd), createReadOnlyBashTool(cwd)],

@@ -1,219 +1,160 @@
 // Scout model selection.
 //
-// This file holds both the low-level model lookup helpers and the scout
-// workload mapping that turns provider + workload into one selected model.
+// Scouts use fixed ordered model target lists. The first available target wins.
 
-import type { Api, Model, ThinkingLevel } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 
-export type ScoutWorkload = "fast" | "balanced" | "deep";
+export type ScoutName = "finder" | "librarian" | "reviewer" | "worker" | "oracle" | "specialist" | "fact-check";
 
-export interface ModelTarget {
+export interface ScoutModelTarget {
+  model: string;
+  thinkingLevel?: ThinkingLevel;
+}
+
+interface ParsedModelTarget {
+  provider?: string;
   modelId: string;
   thinkingLevel?: ThinkingLevel;
-  provider?: string;
 }
 
-export interface WorkloadModelPolicy {
-  targetsByProvider: Record<string, Partial<Record<ScoutWorkload, ModelTarget>>>;
-  fallbackByWorkload: Record<ScoutWorkload, ModelTarget>;
-}
-
-export interface ResolveWorkloadModelPlan {
-  explicitModelId?: string;
-  provider: string;
-  workload: ScoutWorkload;
-  policy?: WorkloadModelPolicy;
-}
-
-export interface ResolvedWorkloadModel {
+export interface ResolvedScoutModel {
   model: Model<Api>;
   thinkingLevel?: ThinkingLevel;
+  target: ScoutModelTarget;
 }
 
-function findMatchingModels(models: Model<Api>[], needle: string): Model<Api>[] {
-  const exactMatches = models.filter((model) => model.id.toLowerCase() === needle);
-  if (exactMatches.length > 0) return exactMatches;
+export const SCOUT_MODEL_TARGETS = {
+  finder: [
+    { model: "google-antigravity/gemini-3-flash-preview", thinkingLevel: "off" },
+    { model: "google/gemini-3-flash-preview", thinkingLevel: "off" },
+    { model: "claude-agent-sdk/claude-haiku-4-5", thinkingLevel: "low" },
+    { model: "anthropic/claude-haiku-4-5", thinkingLevel: "low" },
+  ],
+  librarian: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "off" },
+    { model: "openai/gpt-5.5", thinkingLevel: "off" },
+    { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
+    { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
+  ],
+  reviewer: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
+  ],
+  worker: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
+    { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
+  ],
+  oracle: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "high" },
+    { model: "openai/gpt-5.5", thinkingLevel: "high" },
+    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
+  ],
+  specialist: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
+    { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
+  ],
+  "fact-check": [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "low" },
+    { model: "openai/gpt-5.5", thinkingLevel: "low" },
+    { model: "claude-agent-sdk/claude-haiku-4-5", thinkingLevel: "low" },
+    { model: "anthropic/claude-haiku-4-5", thinkingLevel: "low" },
+  ],
+} satisfies Record<ScoutName, ScoutModelTarget[]>;
 
-  return models.filter((model) => model.id.toLowerCase().includes(needle));
+export const VALID_SCOUT_NAMES = Object.keys(SCOUT_MODEL_TARGETS) as ScoutName[];
+export const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const satisfies readonly ThinkingLevel[];
+
+export function defaultModelTargetsForScout(scoutName: string): ScoutModelTarget[] {
+  const baseName = scoutName.split(":", 1)[0] as ScoutName;
+  return SCOUT_MODEL_TARGETS[baseName] ?? SCOUT_MODEL_TARGETS.specialist;
 }
 
-function parseModelTarget(modelId: string | undefined): ModelTarget | null {
-  const trimmedModelId = modelId?.trim();
-  if (!trimmedModelId) return null;
+export function parseModelTarget(model: string | undefined, thinkingLevel?: ThinkingLevel): ScoutModelTarget | null {
+  const trimmed = model?.trim();
+  if (!trimmed) return null;
 
-  const needle = trimmedModelId.toLowerCase();
-  const aliasTargets: Record<string, ModelTarget> = {
-    haiku: { modelId: "claude-haiku-4-5" },
-    sonnet: { modelId: "claude-sonnet-4-6" },
-    opus: { modelId: "claude-opus-4-7" },
+  const aliases: Record<string, string> = {
+    haiku: "claude-haiku-4-5",
+    sonnet: "claude-sonnet-5",
+    opus: "claude-opus-4-8",
   };
-  const aliasTarget = aliasTargets[needle];
-  if (aliasTarget) return aliasTarget;
 
+  return {
+    model: aliases[trimmed.toLowerCase()] ?? trimmed,
+    thinkingLevel,
+  };
+}
+
+function parseTarget(target: ScoutModelTarget): ParsedModelTarget | null {
+  const parsed = parseModelTarget(target.model, target.thinkingLevel);
+  if (!parsed) return null;
+
+  const needle = parsed.model.toLowerCase();
   const slashIdx = needle.indexOf("/");
   if (slashIdx === -1) {
-    return { modelId: needle };
+    return { modelId: needle, thinkingLevel: parsed.thinkingLevel };
   }
 
   const provider = needle.slice(0, slashIdx).trim();
-  const scopedModelId = needle.slice(slashIdx + 1).trim();
-  if (!provider || !scopedModelId) return null;
+  const modelId = needle.slice(slashIdx + 1).trim();
+  if (!provider || !modelId) return null;
 
-  return {
-    provider,
-    modelId: scopedModelId,
-  };
+  return { provider, modelId, thinkingLevel: parsed.thinkingLevel };
 }
 
-// Family-level provider preference. Internal policy-driven scout resolution uses
-// this order when it wants a model family; explicit user-qualified overrides
-// like `anthropic/claude-opus-4-6` still stay exact.
-export const PRIMARY_PROVIDERS_BY_FAMILY: Record<string, string[]> = {
-  anthropic: ["claude-agent-sdk", "anthropic"],
-  openai: ["openai-codex", "openai", "github-copilot"],
-};
-
-export const DEFAULT_WORKLOAD_MODEL_POLICY: WorkloadModelPolicy = {
-  targetsByProvider: {
-    openai: {
-      fast: { modelId: "gpt-5.4-mini", thinkingLevel: "low" },
-      balanced: { modelId: "gpt-5.5", thinkingLevel: "medium" },
-      deep: { modelId: "gpt-5.5", thinkingLevel: "high" },
-    },
-    "openai-codex": {
-      fast: { modelId: "gpt-5.4-mini", thinkingLevel: "low" },
-      balanced: { modelId: "gpt-5.5", thinkingLevel: "medium" },
-      deep: { modelId: "gpt-5.5", thinkingLevel: "high" },
-    },
-    anthropic: {
-      fast: { modelId: "claude-haiku-4-5", thinkingLevel: "low" },
-      balanced: { modelId: "claude-sonnet-4-6", thinkingLevel: "medium" },
-      deep: { modelId: "claude-opus-4-7", thinkingLevel: "high" },
-    },
-    "claude-agent-sdk": {
-      fast: { modelId: "claude-haiku-4-5", thinkingLevel: "low" },
-      balanced: { modelId: "claude-sonnet-4-6", thinkingLevel: "medium" },
-      deep: { modelId: "claude-opus-4-7", thinkingLevel: "high" },
-    },
-    google: {
-      fast: { modelId: "gemini-2.5-flash", thinkingLevel: "low" },
-      balanced: { modelId: "gemini-2.5-pro", thinkingLevel: "medium" },
-      deep: { modelId: "gemini-3.1-pro-preview", thinkingLevel: "high" },
-    },
-    "github-copilot": {
-      fast: { modelId: "gpt-5-mini", thinkingLevel: "low" },
-      balanced: { modelId: "gpt-5.4-mini", thinkingLevel: "low" },
-      deep: { modelId: "gpt-5.4", thinkingLevel: "xhigh" },
-    },
-    zai: {
-      fast: { modelId: "glm-4.7-flash", thinkingLevel: "low" },
-      balanced: { modelId: "glm-5-turbo", thinkingLevel: "medium" },
-      deep: { modelId: "glm-5.1", thinkingLevel: "high" },
-    },
-  },
-  fallbackByWorkload: {
-    fast: { provider: "anthropic", modelId: "claude-haiku-4-5", thinkingLevel: "low" },
-    balanced: { provider: "anthropic", modelId: "claude-sonnet-4-6", thinkingLevel: "medium" },
-    deep: { provider: "anthropic", modelId: "claude-opus-4-7", thinkingLevel: "high" },
-  },
-};
-
-function resolveTarget(
+export function resolveModelTarget(
   modelRegistry: ModelRegistry,
   currentModel: Model<Api> | undefined,
-  target: ModelTarget,
-): ResolvedWorkloadModel | null {
-  const available = modelRegistry.getAvailable();
+  target: ScoutModelTarget,
+): ResolvedScoutModel | null {
+  const parsed = parseTarget(target);
+  if (!parsed) return null;
+
   const currentProvider = currentModel?.provider?.toLowerCase();
-
-  // Provider-qualified targets are scoped to that provider exactly.
-  const scopedModels = target.provider
-    ? available.filter((candidate) => candidate.provider.toLowerCase() === target.provider)
+  const available = modelRegistry.getAvailable();
+  const scopedModels = parsed.provider
+    ? available.filter((candidate) => candidate.provider.toLowerCase() === parsed.provider)
     : available;
+  const matches = scopedModels.filter((candidate) => candidate.id.toLowerCase() === parsed.modelId);
 
-  const matches = findMatchingModels(scopedModels, target.modelId);
+  const model = !parsed.provider && currentProvider
+    ? matches.find((candidate) => candidate.provider.toLowerCase() === currentProvider) ?? matches[0]
+    : matches[0];
 
-  // Unqualified targets search globally, then prefer the current provider as a tie-break.
-  let orderedMatches = matches;
-  if (!target.provider && currentProvider) {
-    const preferred: Model<Api>[] = [];
-    const others: Model<Api>[] = [];
-
-    for (const candidate of matches) {
-      if (candidate.provider.toLowerCase() === currentProvider) {
-        preferred.push(candidate);
-      } else {
-        others.push(candidate);
-      }
-    }
-
-    orderedMatches = [...preferred, ...others];
-  }
-
-  const model = orderedMatches[0];
   if (!model) return null;
 
   return {
     model,
-    thinkingLevel: target.thinkingLevel,
+    thinkingLevel: parsed.thinkingLevel,
+    target,
   };
 }
 
-function hasAvailableProvider(modelRegistry: ModelRegistry, provider: string): boolean {
-  const normalizedProvider = provider.toLowerCase();
-  return modelRegistry.getAvailable().some((model) => model.provider.toLowerCase() === normalizedProvider);
-}
-
-function resolvePreferredProviderTarget(
+export function resolveFirstAvailableModelTarget(
   modelRegistry: ModelRegistry,
   currentModel: Model<Api> | undefined,
-  target: ModelTarget,
-  provider: string,
-): ResolvedWorkloadModel | null {
-  const providers = PRIMARY_PROVIDERS_BY_FAMILY[provider] ?? [provider];
-
-  for (const candidateProvider of providers) {
-    if (!hasAvailableProvider(modelRegistry, candidateProvider)) continue;
-
-    const match = resolveTarget(modelRegistry, currentModel, {
-      ...target,
-      provider: candidateProvider,
-    });
-    if (match) return match;
+  targets: ScoutModelTarget[],
+): ResolvedScoutModel | null {
+  for (const target of targets) {
+    const resolved = resolveModelTarget(modelRegistry, currentModel, target);
+    if (resolved) return resolved;
   }
-
   return null;
 }
 
-export function resolveWorkloadModel(
-  modelRegistry: ModelRegistry,
-  currentModel: Model<Api> | undefined,
-  plan: ResolveWorkloadModelPlan,
-): ResolvedWorkloadModel | null {
-  const policy = plan.policy ?? DEFAULT_WORKLOAD_MODEL_POLICY;
-  const explicitModelId = plan.explicitModelId?.trim();
-  const provider = plan.provider.trim().toLowerCase();
-
-  if (explicitModelId) {
-    const explicitTarget = parseModelTarget(explicitModelId);
-    if (!explicitTarget) return null;
-
-    return resolveTarget(modelRegistry, currentModel, explicitTarget);
-  }
-
-  const target = policy.targetsByProvider[provider]?.[plan.workload];
-  if (target) {
-    const selectedModel = resolvePreferredProviderTarget(modelRegistry, currentModel, target, provider);
-    if (selectedModel) return selectedModel;
-  }
-
-  const fallback = policy.fallbackByWorkload[plan.workload];
-  const fallbackMatch = fallback.provider
-    ? resolvePreferredProviderTarget(modelRegistry, currentModel, fallback, fallback.provider)
-    : resolveTarget(modelRegistry, currentModel, fallback);
-
-  if (!fallbackMatch) return null;
-
-  return fallbackMatch;
+export function formatModelTarget(target: ScoutModelTarget): string {
+  return target.thinkingLevel ? `${target.model} (thinking: ${target.thinkingLevel})` : target.model;
 }

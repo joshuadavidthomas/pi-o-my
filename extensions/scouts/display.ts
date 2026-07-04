@@ -118,9 +118,9 @@ export function shorten(text: string, max: number): string {
   return `${text.slice(0, max)}…`;
 }
 
-// Clean tool result text for display (strip budget lines, optionally truncate)
+// Clean tool result text for display, optionally truncate.
 export function cleanToolResult(raw: string, maxLines?: number): string {
-  const cleaned = raw.replace(/\n*\[turn budget\][^\n]*/g, "").trimEnd();
+  const cleaned = raw.trimEnd();
   if (maxLines === undefined) return cleaned;
 
   const lines = cleaned.split("\n");

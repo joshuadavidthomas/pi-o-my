@@ -11,7 +11,7 @@ export const FINDER_TOOL: ToolDefinition<typeof FinderParams, ScoutDetails> = {
   name: "finder",
   label: "Finder",
   description:
-    "Read-only workspace scout for coding and personal-assistant tasks. Use when exact file/folder locations are unknown, you'd otherwise do exploratory ls/rg/fd/find/grep/read, or you need targeted evidence from large directories. Finder handles the reconnaissance and returns concise, relevant output: Summary, Locations (path:lineStart-lineEnd), Evidence, and Searched. Usually omit the optional `model` parameter unless the user explicitly asked for a specific model/provider.",
+    "Read-only workspace scout for coding and personal-assistant tasks. Use when exact file/folder locations are unknown, you'd otherwise do exploratory ls/rg/fd/find/grep/read, or you need targeted evidence from large directories. Finder handles the reconnaissance and returns concise, relevant output: Summary, Locations (path:lineStart-lineEnd), Evidence, and Searched.",
   parameters: FinderParams,
 
   async execute(toolCallId, params, signal, onUpdate, ctx) {

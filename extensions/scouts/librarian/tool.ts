@@ -11,7 +11,7 @@ export const LIBRARIAN_TOOL: ToolDefinition<typeof LibrarianParams, ScoutDetails
   name: "librarian",
   label: "Librarian",
   description:
-    "External research scout for coding and personal-assistant tasks. Use when the answer lives outside the local workspace — in GitHub repos, web documentation, or both. Librarian can search GitHub code, read repo files, search the web, and fetch page content. Use for API research, finding implementations in other repos, reading docs, or any question requiring external sources. Pass a complete research brief in `query`, not just search keywords: include the question, context, constraints, known sources, and desired evidence/final answer. Usually omit the optional `model` parameter unless the user explicitly asked for a specific model/provider.",
+    "External research scout for coding and personal-assistant tasks. Use when the answer lives outside the local workspace — in GitHub repos, web documentation, or both. Librarian can search GitHub code, read repo files, search the web, and fetch page content. Use for API research, finding implementations in other repos, reading docs, or any question requiring external sources. Pass a complete research brief in `query`, not just search keywords: include the question, context, constraints, known sources, and desired evidence/final answer.",
   parameters: LibrarianParams,
 
   async execute(toolCallId, params, signal, onUpdate, ctx) {

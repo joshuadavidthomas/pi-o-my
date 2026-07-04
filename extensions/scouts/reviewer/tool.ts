@@ -4,7 +4,7 @@ import { Type } from "typebox";
 import { ScoutCall, ScoutResult } from "../render.ts";
 import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
-import { makeErrorResult, ModelParam, validateQuery } from "../validate.ts";
+import { makeErrorResult, validateQuery } from "../validate.ts";
 import { isReviewLens, REVIEW_LENSES, type ReviewLens } from "./config.ts";
 import { REVIEW_ARTIFACT_TYPES, runReviewLens, type ReviewArtifactType, type ReviewContext, type ReviewMode } from "./run.ts";
 
@@ -57,7 +57,6 @@ export const ReviewerParams = Type.Object({
       description: "Optional repo-specific review rules, lens catalog additions, or decomposition/volatility notes.",
     }),
   ),
-  model: ModelParam,
 });
 
 function reviewMode(value: unknown): ReviewMode {
@@ -117,7 +116,6 @@ export const REVIEWER_TOOL: ToolDefinition<typeof ReviewerParams, ScoutDetails> 
         mode: reviewMode(values.mode),
         contextText: typeof values.contextText === "string" ? values.contextText.trim() : "",
         repoConfig: typeof values.repoConfig === "string" ? values.repoConfig.trim() : "",
-        model: values.model,
         onUpdate: (update) => onUpdate?.({ content: update.content, details: update.details }),
       });
 
