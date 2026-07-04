@@ -87,12 +87,14 @@ export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
 
   pi.registerProvider(PROVIDER_ID, {
     baseUrl: "https://api.anthropic.com",
-    // Pi requires apiKey or oauth on the registration when defining models.
-    // We don't actually use this value — the spawned `claude` binary handles
-    // auth itself via OAuth credentials from `claude auth login`, and
-    // createSdkEnv() strips ANTHROPIC_API_KEY before spawning the subprocess.
-    // The field is here only to satisfy pi's registration validation.
-    apiKey: "$ANTHROPIC_API_KEY",
+    // Pi requires apiKey or oauth on the registration when defining models, and
+    // uses configured auth to decide whether the provider appears in model
+    // pickers. The Claude Agent SDK does not use this value: the spawned
+    // `claude` binary authenticates with credentials from `claude auth login`,
+    // and createSdkEnv() strips ANTHROPIC_API_KEY before spawning the subprocess.
+    // Keep this as a literal sentinel so pi treats the provider as available
+    // even when ANTHROPIC_API_KEY is unset.
+    apiKey: "claude-agent-sdk-auth-sentinel",
     api: API_ID,
     models: PROVIDER_MODELS,
     streamSimple: (model, context, options) => {
