@@ -53,7 +53,7 @@ export function selectReviewLenses(selection: ReviewLensSelection): ReviewLens[]
 
 export function buildReviewTask(options: Omit<RunReviewOptions, "ctx" | "signal" | "lenses" | "onUpdate">): string {
   const disposition = options.mode === "strict"
-    ? "Use strict disposition: every real finding must be Fix in this PR / Fix now or No-op. No defer."
+    ? "Use strict disposition: every real finding must be Fix now or No-op. No defer."
     : "Use notes disposition: separate must-fix findings from advisory notes.";
 
   return [

@@ -16,7 +16,7 @@ export const SpecialistParams = Type.Object({
     description: [
       "Name of the skill to load as domain expertise.",
       "The specialist becomes an expert in this skill and applies it to the task.",
-      "Use listAvailableSkills to discover what's installed.",
+      "Skill names are listed in the <available_skills> section of your system prompt. If the name doesn't match, the error response lists installed skills.",
     ].join("\n"),
   }),
   task: Type.String({

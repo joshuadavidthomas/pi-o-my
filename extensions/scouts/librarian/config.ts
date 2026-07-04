@@ -23,13 +23,13 @@ export const LibrarianParams = Type.Object({
     ].join("\n"),
   }),
   repos: Type.Optional(
-    Type.Array(Type.String({ description: "Optional owner/repo filters (e.g. octocat/hello-world)" }), {
+    Type.Array(Type.String({ description: "Owner/repo filter (e.g. octocat/hello-world)" }), {
       description: "Optional explicit repository scope.",
       maxItems: 30,
     }),
   ),
   owners: Type.Optional(
-    Type.Array(Type.String({ description: "Optional owner/org filters" }), {
+    Type.Array(Type.String({ description: "Owner/org filter" }), {
       description: "Optional owner/org scope.",
       maxItems: 30,
     }),

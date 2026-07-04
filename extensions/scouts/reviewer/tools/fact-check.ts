@@ -18,7 +18,7 @@ Scope comes from the supplied target:
 - all — audit the whole codebase.
 - Anything else — treat the argument as the target itself (a file path, a diff range like origin/main...HEAD, or inline text/output to audit, e.g. when invoked by hickey to audit its own evaluation). Limit the audit to that target.
 
-Do not ask the user questions. This tool runs in a fork and is routinely invoked autonomously.
+Do not ask the user questions. This tool runs in an isolated session and is routinely invoked autonomously.
 
 ## What to flag
 

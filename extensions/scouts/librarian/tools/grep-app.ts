@@ -213,7 +213,7 @@ export function createGrepGitHubTool(): AgentTool<typeof searchCodeSchema, Searc
       '  ✅ Good: "createAgentSession(", "impl Display for", "#[derive(Serialize"',
       '  ❌ Bad: "how to create sessions", "best practices"',
       "",
-      "Results are leads for discovery. To cite code, download the actual file with gh.",
+      "Results are leads for discovery. To cite code, read the actual file with readRepoFile.",
     ].join("\n"),
     parameters: searchCodeSchema,
 

@@ -11,7 +11,7 @@ export const SPECIALIST_TOOL: ToolDefinition<typeof SpecialistParams, ScoutDetai
   name: "specialist",
   label: "Specialist",
   description:
-    "Skill-powered domain expert. Load any installed skill as domain expertise and dispatch a task. The specialist reads the skill, becomes an expert, and applies that expertise to your task. Defaults to read-only tools (read, bash). Pass tools: [\"read\", \"bash\", \"write\", \"edit\"] for tasks that need to modify files. Use for delegating work that requires specific domain knowledge — code review styles, framework patterns, documentation standards, or any skill in ~/.agents/skills/ or ~/.pi/agent/skills/.",
+    "Skill-powered domain expert. Load any installed skill as domain expertise and dispatch a task. The specialist reads the skill, becomes an expert, and applies that expertise to your task. Defaults to read-only tools (read, bash). Add \"write\" and \"edit\" to tools only for tasks that modify files. Use for delegating work that requires specific domain knowledge — code review styles, framework patterns, documentation standards, or any skill in ~/.agents/skills/ or ~/.pi/agent/skills/. Read-only by default and safe to run in parallel — when investigations are independent, issue multiple scout calls in the same assistant turn. Avoid parallel specialist calls that write to overlapping files.",
   parameters: SpecialistParams,
 
   async execute(toolCallId, params, signal, onUpdate, ctx) {

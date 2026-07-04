@@ -33,7 +33,7 @@ Key responsibilities:
 - searchRepos: Discover repos by name, organization, or language.
 
 ### Web tools
-- webSearch: Search the web via Brave Search. Returns titles, links, snippets. Use --content flag for full page content. Best for documentation, API references, and current information.
+- webSearch: Search the web via Brave Search. Returns titles, links, snippets. Set content: true for full page content. Best for documentation, API references, and current information.
 - webFetch: Fetch a specific URL and extract readable content as markdown. Use after finding relevant URLs via webSearch. Pass the original URL; use backend "auto" by default, "jina" for clean reader markdown, or "direct" for local Readability extraction.
 
 ## Tool usage
@@ -43,7 +43,7 @@ Use the right tools for the job:
 - **Web questions** (documentation, API references, tutorials, current info): Use webSearch + webFetch.
 - **Mixed questions**: Use both. Start with whichever source is more likely to have the answer.
 
-IMPORTANT: The dedicated tools are fully functional and return complete results. Trust their output. Do NOT fall back to bash to repeat what a dedicated tool already did.
+IMPORTANT: The dedicated tools are fully functional and return complete results. Trust their output.
 
 Use tools extensively to explore before answering. Execute tools in parallel when possible for efficiency.
 

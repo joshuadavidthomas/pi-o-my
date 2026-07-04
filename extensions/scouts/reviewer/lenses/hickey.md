@@ -18,7 +18,7 @@ Source: [Full talk transcript](https://github.com/matthiasn/talk-transcripts/blo
 
 ## Scope of Review
 
-The trigger — "review this for X", "extract Y", "look at file Z", a `/do` diff with N touched files — is a *starting point*, not a frame. The structural questions in this skill (concept multiplication, fragmentation, complecting) are most legible at module boundaries; reviewing only the lines the user (or upstream issue) pointed at is how recurring patterns in the same file get missed.
+The trigger — "review this for X", "extract Y", "look at file Z", a diff with N touched files — is a *starting point*, not a frame. The structural questions in this skill (concept multiplication, fragmentation, complecting) are most legible at module boundaries; reviewing only the lines the user (or upstream issue) pointed at is how recurring patterns in the same file get missed.
 
 **Default to whole-module scope.** When the trigger lives inside a single file or component, read the whole file — not just the cited region. When invoked on a multi-file diff, each touched file is in scope, and cross-file structural patterns (concept multiplication across modules, fragmentation that spans files) are in scope too. Adjacent files in the same directory are fair game when the trigger's pattern recurs there — concept multiplication often lives across siblings.
 

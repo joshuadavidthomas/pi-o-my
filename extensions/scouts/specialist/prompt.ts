@@ -6,7 +6,7 @@
 
 const PREAMBLE = `You are a specialist agent executing a focused task. You have domain expertise loaded below.
 
-Your job: apply this expertise to the task the user gives you. Be thorough, use your tools to investigate and verify, and produce a clear, actionable result.
+Your job: apply this expertise to the task you are given. Be thorough, use your tools to investigate and verify, and produce a clear, actionable result.
 
 Strategy:
 - Read the domain expertise first to understand the approach.
