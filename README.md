@@ -159,6 +159,10 @@ Warns when `rg` is called with `-r` (which means `--replace`, not recursive). A 
 
 Non-blocking — the command still runs, but a warning is prepended to the tool result so the LLM sees it and self-corrects.
 
+#### [share-md](./extensions/share-md.ts)
+
+Adds `/share-md`, which exports the active session branch as Markdown and uploads it as a secret GitHub gist. Requires the `gh` CLI (`gh auth login`).
+
 #### [scouts](./extensions/scouts/)
 
 Scout subagent system — spins up focused sessions with purpose-built tool sets, returning structured results with custom TUI rendering. Originally vendored from [pi-finder](https://github.com/default-anton/pi-finder) and [pi-librarian](https://github.com/default-anton/pi-librarian), now significantly expanded.
