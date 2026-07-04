@@ -57,6 +57,7 @@ export class PiStreamState {
   private started = false;
   private isFinished = false;
   private streamEventsReceived = false;
+  private messageStopSeen = false;
   private pendingFinishedStopReason: FinishedStopReason = "stop";
   private readonly turnStartedAt = performance.now();
   private firstDeltaLogged = false;
@@ -91,6 +92,14 @@ export class PiStreamState {
 
   acceptsAssistantBackfill() {
     return !this.streamEventsReceived;
+  }
+
+  markMessageStopSeen() {
+    this.messageStopSeen = true;
+  }
+
+  hasSeenMessageStop() {
+    return this.messageStopSeen;
   }
 
   finishToolUseIfPresent() {
@@ -415,6 +424,13 @@ function applyAssistantBackfill(
           applyAssistantBackfillItem(item, state, toolBridge);
         }
       }
+      // The SDK surfaces one assistant envelope per content block while the
+      // stream is still emitting sibling blocks. Finishing on the first
+      // tool-call envelope would drop parallel tool calls that follow (their
+      // ids never register with the bridge, so the SDK's MCP calls fail).
+      // Only finish from backfill once message_stop has confirmed the
+      // logical message is complete.
+      if (!state.hasSeenMessageStop()) return false;
     }
     if (state.finishToolUseIfPresent()) return true;
   }
@@ -472,6 +488,7 @@ function applyTurnEvent(event: TurnEvent, state: PiStreamState, toolBridge: Tool
       state.applyUsage(event.usage);
       return false;
     case "messageFinished":
+      state.markMessageStopSeen();
       return state.finishToolUseIfPresent();
   }
 }
