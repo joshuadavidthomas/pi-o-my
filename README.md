@@ -161,21 +161,23 @@ Non-blocking — the command still runs, but a warning is prepended to the tool 
 
 #### [scouts](./extensions/scouts/)
 
-Scout subagent system — spins up focused small-model sessions with purpose-built tool sets, returning structured results with custom TUI rendering. Originally vendored from [pi-finder](https://github.com/default-anton/pi-finder) and [pi-librarian](https://github.com/default-anton/pi-librarian), now significantly expanded.
+Scout subagent system — spins up focused sessions with purpose-built tool sets, returning structured results with custom TUI rendering. Originally vendored from [pi-finder](https://github.com/default-anton/pi-finder) and [pi-librarian](https://github.com/default-anton/pi-librarian), now significantly expanded.
 
 Features:
-- **Model tier system**: Each scout has a default tier (`fast` or `capable`) overridable per-call via `modelTier` parameter
-- **Usage-aware model selection**: Checks provider utilization via [vibeusage](https://github.com/joshuadavidthomas/vibeusage), deprioritizing providers above 85% and skipping those above 95%
-- **Interleaved TUI rendering**: Tool calls and text rendered chronologically with collapsible markdown output
-- **Turn budget enforcement**: Blocks tool use on the final turn to force a summary response
+- **Workload-based model selection**: Each scout declares a `fast`, `balanced`, or `deep` workload. Per-call `model` overrides are available for explicit retries or user-requested providers.
+- **Provider-preserving routing**: Scout model selection stays in the current provider family when possible, with configured fallbacks when a workload is unavailable.
+- **Interleaved TUI rendering**: Tool calls and text render chronologically with collapsible markdown output.
+- **Turn budget enforcement**: Blocks tool use on the final turn to force a summary response.
 
-Registers five tools:
+Registers seven tools:
 
-- **finder** (fast): Read-only workspace scout — locates files, directories, and components when exact locations are unknown
-- **librarian** (fast, overridable to capable): External research scout — searches GitHub repos and the web, fetches code and documentation
-- **oracle** (capable): Deep code analysis scout — traces data flow, analyzes architecture, finds patterns with precise file:line references. Read-only (restricted bash allowlist)
-- **specialist** (capable): Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set
-- **reviewer** (capable): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through one review lens per call: Hickey structural simplicity, Lowy volatility-based decomposition, Grug smol-brain changeability, Beck tidy-first change economics, Muratori semantic compression and actual work visibility, Lamport state-space and invariant reasoning, Ousterhout deep-module change complexity, or Feathers legacy-change safety. For multi-lens reviews, call `reviewer` multiple times in parallel. Returns evidence-backed findings and actions without leaking reviewer deliberation into the main session
+- **finder** (fast): Workspace scout — locates files, directories, and components when exact locations are unknown.
+- **librarian** (balanced): External research scout — searches GitHub repos and the web, fetches code and documentation.
+- **oracle** (deep): Deep code analysis scout — traces data flow, analyzes architecture, finds patterns with precise file:line references. Read-only with a restricted bash allowlist.
+- **specialist** (deep by default): Skill-powered domain expert — loads an installed skill and applies it to a focused task with a configurable tool set.
+- **reviewer** (balanced): Adversarial artifact review scout — judges concrete diffs, plans, design sketches, files/modules, or session briefs through one review lens per call: Hickey structural simplicity, Lowy volatility-based decomposition, Grug smol-brain changeability, Beck tidy-first change economics, Muratori semantic compression and actual work visibility, Lamport state-space and invariant reasoning, Ousterhout deep-module change complexity, or Feathers legacy-change safety. For multi-lens reviews, call `reviewer` multiple times in parallel.
+- **validator** (fast): Verification scout — runs noisy tests, builds, linters, typecheckers, repro commands, and logs, then returns a compact pass/fail report without editing files.
+- **worker** (balanced): Bounded implementation worker — applies a concrete implementation brief with read/edit/write/bash tools, then reports changed files and verification. Use finder/oracle/librarian before worker when the target or design is unclear; only one mutating worker runs at a time.
 
 Also registers `/review`, a command that gathers an artifact and calls the reviewer scout directly:
 
