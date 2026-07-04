@@ -31,6 +31,30 @@ interface AliasEntry {
 }
 
 const KEBAB_COMMAND_RE = /^[a-z][a-z0-9]*-[a-z0-9-]+$/;
+const BUILT_IN_INTERACTIVE_COMMANDS = new Set([
+  "changelog",
+  "clone",
+  "compact",
+  "copy",
+  "export",
+  "fork",
+  "hotkeys",
+  "import",
+  "login",
+  "logout",
+  "model",
+  "name",
+  "new",
+  "quit",
+  "reload",
+  "resume",
+  "scoped-models",
+  "session",
+  "settings",
+  "share",
+  "tree",
+  "trust",
+]);
 const PATCH_MARKER = "__kebabAliasPatchState";
 
 // Set when the shim must fall back to pi's original command list.
@@ -81,6 +105,7 @@ function splitKebabCommand(commandName: string): { root: string; subcommand: str
 
   const [root, ...rest] = baseName.split("-");
   if (!root || rest.length === 0) return undefined;
+  if (BUILT_IN_INTERACTIVE_COMMANDS.has(root)) return undefined;
 
   return { root, subcommand: `${rest.join("-")}${duplicateSuffix}` };
 }
