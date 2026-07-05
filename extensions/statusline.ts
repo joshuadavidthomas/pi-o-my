@@ -11,7 +11,7 @@
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, estimateTokens, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execSync } from "node:child_process";
 
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -470,6 +470,7 @@ export default function (pi: ExtensionAPI) {
             tokens: number;
             percent: number;
             contextWindow: number;
+            estimated?: boolean;
           } | null = null;
 
           if (
@@ -485,8 +486,21 @@ export default function (pi: ExtensionAPI) {
             };
 
             if (modelKey) {
-              lastContextUsageCache = { modelKey, ...displayContextUsage };
+              lastContextUsageCache = { modelKey, tokens: displayContextUsage.tokens, percent: displayContextUsage.percent, contextWindow: displayContextUsage.contextWindow };
             }
+          } else if (contextUsage && contextUsage.contextWindow > 0 && contextUsage.tokens === null) {
+            // Post-compaction gap: core reports unknown tokens until the first
+            // real response, so estimate chars/4 over the compacted context.
+            let tokens = Math.ceil(ctx.getSystemPrompt().length / 4);
+            for (const message of buildSessionContext(state.getBranch()).messages) {
+              tokens += estimateTokens(message);
+            }
+            displayContextUsage = {
+              tokens,
+              percent: (tokens / contextUsage.contextWindow) * 100,
+              contextWindow: contextUsage.contextWindow,
+              estimated: true,
+            };
           } else if (modelKey && lastContextUsageCache?.modelKey === modelKey) {
             displayContextUsage = {
               tokens: lastContextUsageCache.tokens,
@@ -507,7 +521,7 @@ export default function (pi: ExtensionAPI) {
             if (displayContextUsage.tokens >= errorAt) contextColor = "error";
             else if (displayContextUsage.tokens >= warningAt) contextColor = "warning";
 
-            const contextStr = `${NERD_FONT_MAP["BRAIN"]} ${displayContextUsage.percent.toFixed(0)}%`;
+            const contextStr = `${NERD_FONT_MAP["BRAIN"]} ${displayContextUsage.estimated ? "~" : ""}${displayContextUsage.percent.toFixed(0)}%`;
             const contextDetail = `(${formatTokens(displayContextUsage.tokens)}/${formatTokens(displayContextUsage.contextWindow)})`;
 
             line1Parts.push(
@@ -624,6 +638,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async () => {
+    requestFooterRender();
+  });
+
+  // getContextUsage() returns null tokens until the first post-compaction
+  // response, so drop the cached pre-compaction value instead of showing it.
+  pi.on("session_compact", async () => {
+    lastContextUsageCache = null;
     requestFooterRender();
   });
 
