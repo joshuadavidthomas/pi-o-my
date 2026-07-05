@@ -1,5 +1,6 @@
 import { getModels } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { registerCompaction } from "./compaction.js";
 import { debug } from "./sdk/debug.js";
 import { ClaudeSessionManager } from "./session.js";
 import { streamClaudeAgentSdk, streamClaudeAgentSdkOneShot } from "./sdk/query.js";
@@ -22,6 +23,8 @@ const PROVIDER_MODELS: ProviderModelConfig[] = getModels("anthropic")
 
 export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
   const claudeSessions = ClaudeSessionManager.claim(pi);
+
+  registerCompaction(pi, PROVIDER_ID);
 
   pi.on("session_start", (event, ctx) => {
     debug("event:session_start", {
