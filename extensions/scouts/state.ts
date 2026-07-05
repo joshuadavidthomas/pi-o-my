@@ -1,5 +1,6 @@
 // Shared state helpers for scout execution and result shaping.
 
+import { generateRunId } from "./runs.ts";
 import type { ScoutDetails } from "./types.ts";
 
 type ScoutStatus = ScoutDetails["status"];
@@ -53,8 +54,9 @@ export function hasActiveScoutToolCalls(): boolean {
   return activeScoutToolCalls.size > 0;
 }
 
-export function createInitialRun(query: string): ScoutRunDetails {
+export function createInitialRun(query: string, runId = generateRunId("sct")): ScoutRunDetails {
   return {
+    runId,
     status: "running",
     query,
     turns: 0,

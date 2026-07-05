@@ -16,15 +16,21 @@ export function workerThinkingLevel(effort: unknown): ThinkingLevel {
 }
 
 export const WorkerParams = Type.Object({
-  query: Type.String({
+  query: Type.Optional(Type.String({
     description: [
-      "Complete implementation or validation brief for the Worker subagent.",
+      "Complete implementation or validation brief for the Worker subagent. Required unless resume is set.",
       "Use worker when the concrete change or verification target is already known. Worker is for bounded implementation, mechanical edits, and running requested verification — not open-ended discovery or architecture planning.",
       "Include the desired end state, relevant files/components, constraints, and what should not change. For validation-only tasks, set readOnly: true.",
+      "When resume is set, query is an optional short follow-up instruction or steering note for the resumed run.",
       "For research or code understanding, use finder/oracle/librarian before worker.",
       "Example: 'Update the scout model resolver. Change models.ts and related tests, then run the scout test suite.'",
     ].join("\n"),
-  }),
+  })),
+  resume: Type.Optional(
+    Type.String({
+      description: "Resume a suspended worker run by its runId (from a previous timeout or more-time result). When set, `query` becomes an optional follow-up instruction for the resumed run and other parameters are ignored; the original run's configuration, tools, and model are reused. A resumed run gets a fresh time budget.",
+    }),
+  ),
   readOnly: Type.Optional(
     Type.Boolean({
       description: "Set true for validation-only runs. The worker gets no edit or write tools, so it cannot modify files, and it runs without the single-worker lock so it can go in parallel with a mutating worker.",
@@ -61,6 +67,7 @@ const BASE_WORKER_CONFIG = {
 
 export const WORKER_CONFIG: ScoutConfig = {
   ...BASE_WORKER_CONFIG,
+  isMutatingWorker: true,
   buildSystemPrompt: (timeoutMs) => buildWorkerSystemPrompt(timeoutMs, false),
   createTools: (cwd) => [
     createReadTool(cwd),
@@ -72,6 +79,7 @@ export const WORKER_CONFIG: ScoutConfig = {
 
 export const READ_ONLY_WORKER_CONFIG: ScoutConfig = {
   ...BASE_WORKER_CONFIG,
+  isMutatingWorker: false,
   buildSystemPrompt: (timeoutMs) => buildWorkerSystemPrompt(timeoutMs, true),
   createTools: (cwd) => [
     createReadTool(cwd),

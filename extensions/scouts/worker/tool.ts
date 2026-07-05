@@ -1,6 +1,7 @@
-import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
-import { executeScout } from "../execute.ts";
+import { executeScout, resumeScout } from "../execute.ts";
+import { getSuspendedRun } from "../runs.ts";
 import { ScoutCall, ScoutResult } from "../render.ts";
 import { trackScoutToolCall } from "../state.ts";
 import type { ScoutDetails } from "../types.ts";
@@ -8,6 +9,69 @@ import { makeErrorResult, validateQuery } from "../validate.ts";
 import { READ_ONLY_WORKER_CONFIG, WORKER_CONFIG, WorkerParams } from "./config.ts";
 
 let activeWorkerToolCallId: string | undefined;
+
+type WorkerToolRunners = {
+  executeScout: typeof executeScout;
+  resumeScout: typeof resumeScout;
+};
+
+const DEFAULT_RUNNERS: WorkerToolRunners = { executeScout, resumeScout };
+
+function resumeRunId(params: unknown): string | undefined {
+  if (typeof params !== "object" || params === null) return undefined;
+  const rawResume = (params as { resume?: unknown }).resume;
+  if (rawResume === undefined) return undefined;
+  return typeof rawResume === "string" ? rawResume.trim() : "";
+}
+
+function validateWorkerParams(params: unknown): ReturnType<typeof makeErrorResult> | null {
+  const resume = resumeRunId(params);
+  if (resume !== undefined) {
+    if (!resume) return makeErrorResult("Invalid parameters: expected `resume` to be a non-empty string.");
+    return null;
+  }
+
+  return validateQuery(params);
+}
+
+function activeWorkerError(query: unknown): ReturnType<typeof makeErrorResult> {
+  return makeErrorResult(
+    "A mutating worker is already running. Wait for the current worker to finish, or set readOnly: true for validation-only runs, which can go in parallel.",
+    typeof query === "string" ? query : "",
+  );
+}
+
+export async function executeWorkerToolCall(
+  toolCallId: string | undefined,
+  params: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  onUpdate: Parameters<ToolDefinition<typeof WorkerParams, ScoutDetails>["execute"]>[3],
+  ctx: ExtensionContext,
+  runners: WorkerToolRunners = DEFAULT_RUNNERS,
+) {
+  const error = validateWorkerParams(params);
+  if (error) return error;
+
+  const resume = resumeRunId(params);
+  const readOnly = params.readOnly === true;
+  const lockRequired = resume
+    ? getSuspendedRun(resume)?.isMutatingWorker === true
+    : !readOnly;
+
+  if (lockRequired && activeWorkerToolCallId) {
+    return activeWorkerError(params.query);
+  }
+
+  if (lockRequired) activeWorkerToolCallId = toolCallId || "worker";
+  const finishTracking = trackScoutToolCall(toolCallId);
+  try {
+    if (resume) return await runners.resumeScout(resume, params.query, signal, onUpdate);
+    return await runners.executeScout(readOnly ? READ_ONLY_WORKER_CONFIG : WORKER_CONFIG, params as Record<string, unknown>, signal, onUpdate, ctx);
+  } finally {
+    finishTracking();
+    if (lockRequired) activeWorkerToolCallId = undefined;
+  }
+}
 
 export const WORKER_TOOL: ToolDefinition<typeof WorkerParams, ScoutDetails> = {
   name: "worker",
@@ -17,26 +81,7 @@ export const WORKER_TOOL: ToolDefinition<typeof WorkerParams, ScoutDetails> = {
   parameters: WorkerParams,
 
   async execute(toolCallId, params, signal, onUpdate, ctx) {
-    const error = validateQuery(params);
-    if (error) return error;
-
-    const readOnly = params.readOnly === true;
-
-    if (!readOnly && activeWorkerToolCallId) {
-      return makeErrorResult(
-        "A mutating worker is already running. Wait for the current worker to finish, or set readOnly: true for validation-only runs, which can go in parallel.",
-        typeof params.query === "string" ? params.query : "",
-      );
-    }
-
-    if (!readOnly) activeWorkerToolCallId = toolCallId || "worker";
-    const finishTracking = trackScoutToolCall(toolCallId);
-    try {
-      return await executeScout(readOnly ? READ_ONLY_WORKER_CONFIG : WORKER_CONFIG, params as Record<string, unknown>, signal, onUpdate, ctx);
-    } finally {
-      finishTracking();
-      if (!readOnly) activeWorkerToolCallId = undefined;
-    }
+    return executeWorkerToolCall(toolCallId, params as Record<string, unknown>, signal, onUpdate, ctx);
   },
 
   renderCall(_args, theme, context) {

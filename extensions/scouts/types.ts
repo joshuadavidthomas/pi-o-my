@@ -13,6 +13,7 @@ export type DisplayItem =
   | { type: "text"; text: string };
 
 interface ScoutRunDetails {
+  runId: string;
   status: ScoutStatus;
   query: string;
   turns: number;
@@ -20,6 +21,7 @@ interface ScoutRunDetails {
   activityPhase?: ScoutActivityPhase;
   activityText?: string;
   summaryText?: string;
+  moreTimeRequested?: string;
   error?: string;
   startedAt: number;
   endedAt?: number;
@@ -40,6 +42,8 @@ export interface ScoutConfig {
   name: string;
   /** Wall-clock timeout in milliseconds. Defaults to 10 minutes. */
   timeoutMs?: number;
+  /** True for the mutating worker so suspended runs can reacquire the worker lock later. */
+  isMutatingWorker?: boolean;
   /** Optional dynamic thinking level. Used for scout-specific effort knobs. */
   thinkingLevelForParams?: (params: Record<string, unknown>) => ThinkingLevel | undefined;
   /** Optional fixed model for this scout config. Tried before configured/default target lists. */

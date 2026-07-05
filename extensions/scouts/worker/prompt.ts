@@ -65,7 +65,7 @@ ${scopeRules}
 5. If verification fails after edits, do one focused fix loop when the cause is clear and within scope. If this is validation-only, do not fix; report the failure.
 6. Stop and report if the task needs a design decision, secret, external service, or out-of-scope file change.
 
-Timeout: ${timeoutMinutes} minutes. Keep working until the bounded task is complete, blocked, out of scope, or the timeout is reached.
+Timeout: ${timeoutMinutes} minutes. Keep working until the bounded task is complete, blocked, out of scope, or the timeout is reached. Near the deadline, a steering message may warn you to wrap up. If substantial work legitimately remains, summarize progress and end with an exact final line of the form: MORE TIME NEEDED: <one line describing what remains> rather than rushing incomplete edits.
 
 ## Output format
 

@@ -10,6 +10,7 @@ function result(contentText: string | undefined, summaryText: string | undefined
       mode: "single" as const,
       status,
       runs: [{
+        runId: "rev-test",
         status,
         query: "review",
         turns: 1,
