@@ -14,8 +14,33 @@ function listParam(params: Record<string, unknown>, key: "allowedPaths" | "verif
   return values.map((value) => `- ${value}`).join("\n");
 }
 
-export function buildWorkerSystemPrompt(timeoutMs: number): string {
+export function buildWorkerSystemPrompt(timeoutMs: number, readOnly = false): string {
   const timeoutMinutes = Math.round(timeoutMs / 60_000);
+
+  const tools = readOnly
+    ? `You have local workspace tools:
+- read: inspect files.
+- bash: run project commands and validation. Builds and test runs may write their own caches and artifacts; that is expected.`
+    : `You have local workspace tools:
+- read: inspect files before editing or validating.
+- edit: modify existing files using exact text replacement.
+- write: create new files or intentionally rewrite full files.
+- bash: run project commands and validation.`;
+
+  const scopeRules = readOnly
+    ? `- This is a validation-only run. You have no edit or write tools, and you must not modify project files through bash either. No sed -i, tee, heredoc writes, generated patch scripts, or shell redirection into project files.
+- Run the requested checks and report the results. If a check fails, do not fix it; diagnose briefly and report.
+- Do not run version-control mutations such as commit, push, checkout, reset, rebase, or bookmark movement.
+- Do not install dependencies unless the brief explicitly requires it.`
+    : `- Stay within the requested task. Do not perform opportunistic refactors.
+- If allowed paths are provided, treat them as the edit boundary. Do not modify files outside that boundary unless the task is impossible without doing so; if that happens, stop and report the conflict.
+- If the brief asks only for validation, do not edit files. Run the requested checks and summarize the result.
+- Read before editing. Preserve local conventions.
+- Prefer edit for existing files. Use write for new files or intentional full-file rewrites.
+- Do not use bash to edit files. No sed -i, tee, heredoc writes, generated patch scripts, or shell redirection for project-file changes.
+- Do not run version-control mutations such as commit, push, checkout, reset, rebase, or bookmark movement.
+- Do not install dependencies unless the brief explicitly requires it.
+- Avoid parallel write-heavy work. This worker is intended to be the only mutating subagent for the current task.`;
 
   return `You are Worker, a bounded implementation subagent operating inside a coding assistant.
 
@@ -25,23 +50,11 @@ IMPORTANT: Only your last message is returned to the caller. Your last message m
 
 ## Tools
 
-You have local workspace tools:
-- read: inspect files before editing or validating.
-- edit: modify existing files using exact text replacement.
-- write: create new files or intentionally rewrite full files.
-- bash: run project commands and validation.
+${tools}
 
 ## Scope rules
 
-- Stay within the requested task. Do not perform opportunistic refactors.
-- If allowed paths are provided, treat them as the edit boundary. Do not modify files outside that boundary unless the task is impossible without doing so; if that happens, stop and report the conflict.
-- If the brief asks only for validation, do not edit files. Run the requested checks and summarize the result.
-- Read before editing. Preserve local conventions.
-- Prefer edit for existing files. Use write for new files or intentional full-file rewrites.
-- Do not use bash to edit files. No sed -i, tee, heredoc writes, generated patch scripts, or shell redirection for project-file changes.
-- Do not run version-control mutations such as commit, push, checkout, reset, rebase, or bookmark movement.
-- Do not install dependencies unless the brief explicitly requires it.
-- Avoid parallel write-heavy work. This worker is intended to be the only mutating subagent for the current task.
+${scopeRules}
 
 ## Workflow
 
@@ -82,7 +95,9 @@ export function buildWorkerUserPrompt(params: Record<string, unknown>): string {
     thorough: "High-reasoning implementation pass. Inspect more surrounding context, make deeper in-scope changes when the brief calls for them, and run broader relevant validation.",
   }[effort];
 
-  return `Task: implement the bounded change described below.
+  const readOnly = params.readOnly === true;
+
+  return `Task: ${readOnly ? "validate as described below. This is a read-only run: make no file edits." : "implement the bounded change described below."}
 Follow the system instructions for scope, edits, verification, and output format.
 
 Implementation effort: ${effort}

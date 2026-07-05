@@ -20,11 +20,17 @@ export const WorkerParams = Type.Object({
     description: [
       "Complete implementation or validation brief for the Worker subagent.",
       "Use worker when the concrete change or verification target is already known. Worker is for bounded implementation, mechanical edits, and running requested verification — not open-ended discovery or architecture planning.",
-      "Include the desired end state, relevant files/components, constraints, and what should not change. For validation-only tasks, state that no edits should be made.",
+      "Include the desired end state, relevant files/components, constraints, and what should not change. For validation-only tasks, set readOnly: true.",
       "For research or code understanding, use finder/oracle/librarian before worker.",
       "Example: 'Update the scout model resolver. Change models.ts and related tests, then run the scout test suite.'",
     ].join("\n"),
   }),
+  readOnly: Type.Optional(
+    Type.Boolean({
+      description: "Set true for validation-only runs. The worker gets no edit or write tools, so it cannot modify files, and it runs without the single-worker lock so it can go in parallel with a mutating worker.",
+      default: false,
+    }),
+  ),
   allowedPaths: Type.Optional(
     Type.Array(Type.String({ description: "Path or directory the worker is allowed or expected to modify." }), {
       description: "Optional intended edit scope. If supplied, worker should not modify files outside these paths unless the task is impossible without doing so, in which case it must stop and report the conflict.",
@@ -46,16 +52,29 @@ export const WorkerParams = Type.Object({
   ),
 });
 
-export const WORKER_CONFIG: ScoutConfig = {
+const BASE_WORKER_CONFIG = {
   name: "worker",
-  thinkingLevelForParams: (params) => workerThinkingLevel(params.effort),
+  thinkingLevelForParams: (params: Record<string, unknown>) => workerThinkingLevel(params.effort),
   modelTargets: SCOUT_MODEL_TARGETS.worker,
-  buildSystemPrompt: buildWorkerSystemPrompt,
   buildUserPrompt: buildWorkerUserPrompt,
+} satisfies Partial<ScoutConfig>;
+
+export const WORKER_CONFIG: ScoutConfig = {
+  ...BASE_WORKER_CONFIG,
+  buildSystemPrompt: (timeoutMs) => buildWorkerSystemPrompt(timeoutMs, false),
   createTools: (cwd) => [
     createReadTool(cwd),
     createBashTool(cwd),
     createEditTool(cwd),
     createWriteTool(cwd),
+  ],
+};
+
+export const READ_ONLY_WORKER_CONFIG: ScoutConfig = {
+  ...BASE_WORKER_CONFIG,
+  buildSystemPrompt: (timeoutMs) => buildWorkerSystemPrompt(timeoutMs, true),
+  createTools: (cwd) => [
+    createReadTool(cwd),
+    createBashTool(cwd),
   ],
 };
