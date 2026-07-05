@@ -82,11 +82,21 @@ function shouldSoftResetAfterTurn(usageTotalTokens: number, contextWindow: numbe
   return usageTotalTokens >= contextWindow * softResetThreshold();
 }
 
+// Claude Code only requests the context-1m beta when the model string carries
+// the [1m] suffix; a bare model id is served with a 200k window even for
+// natively-1M models, so long pi sessions die with "Prompt is too long".
+function toSdkModelId(model: Model<Api>): string {
+  if (model.contextWindow > 200_000 && !model.id.endsWith("[1m]")) {
+    return `${model.id}[1m]`;
+  }
+  return model.id;
+}
+
 const baseQueryOptions = (model: Model<Api>, abortController: AbortController) => ({
   abortController,
   cwd: process.cwd(),
   pathToClaudeCodeExecutable: resolveClaudeExecutable(),
-  model: model.id,
+  model: toSdkModelId(model),
   tools: [],
   includePartialMessages: true,
   settingSources: [],
