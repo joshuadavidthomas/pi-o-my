@@ -1,9 +1,52 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import { PiStreamState } from "../pi-stream.ts";
 import { ClaudeSession } from "../session.ts";
-import { streamClaudeAgentSdk } from "./query.ts";
 import { SdkInputQueue } from "./queue.ts";
+
+interface QueryCall {
+  prompt: AsyncIterable<SDKUserMessage> | string;
+}
+
+const queryCalls: QueryCall[] = [];
+const fakeQueries: Array<{ close: () => void }> = [];
+
+function createFakeQuery() {
+  let closed = false;
+  const waiters: Array<(result: IteratorResult<unknown>) => void> = [];
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    for (const waiter of waiters.splice(0)) {
+      waiter({ value: undefined, done: true });
+    }
+  };
+
+  const fakeQuery = {
+    close,
+    setMcpServers: mock(async () => {}),
+    setModel: mock(async () => {}),
+    [Symbol.asyncIterator]: () => ({
+      next: () => {
+        if (closed) return Promise.resolve({ value: undefined, done: true });
+        return new Promise<IteratorResult<unknown>>((resolve) => waiters.push(resolve));
+      },
+    }),
+  };
+  fakeQueries.push(fakeQuery);
+  return fakeQuery;
+}
+
+mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+  query: mock((call: QueryCall) => {
+    queryCalls.push(call);
+    return createFakeQuery();
+  }),
+}));
+
+const { streamClaudeAgentSdk } = await import("./query.ts");
 
 const model = {
   api: "claude-agent-sdk",
@@ -46,7 +89,190 @@ function toolResultContext(toolCallId: string) {
   } as never;
 }
 
+function compactedToolResultContext() {
+  return {
+    systemPrompt: "",
+    messages: [
+      {
+        role: "user",
+        content: "Compaction summary: user asked us to inspect post-compaction stalls.",
+        timestamp: Date.now(),
+      },
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "I'll read the provider query router." },
+          { type: "toolCall", id: "toolu_compacted", name: "read", arguments: { path: "sdk/query.ts" } },
+        ],
+        timestamp: Date.now(),
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_compacted",
+        toolName: "read",
+        content: [{ type: "text", text: "TOOL RESULT FROM COMPACTION" }],
+        isError: false,
+        timestamp: Date.now(),
+      },
+    ],
+    tools: [],
+  } as never;
+}
+
+function staleLookingToolResultContext() {
+  return {
+    systemPrompt: "",
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "I'll inspect the stale-looking file." },
+          { type: "toolCall", id: "toolu_stale", name: "read", arguments: { path: "stale.txt" } },
+        ],
+        timestamp: Date.now(),
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_stale",
+        toolName: "read",
+        content: [{ type: "text", text: "STALE LOOKING TOOL RESULT" }],
+        isError: false,
+        timestamp: Date.now(),
+      },
+    ],
+    tools: [],
+  } as never;
+}
+
+function freshTurnContext() {
+  return {
+    systemPrompt: "",
+    messages: [
+      { role: "user", content: "old prompt", timestamp: Date.now() },
+      { role: "assistant", content: "old answer", timestamp: Date.now() },
+      { role: "user", content: "latest fresh user prompt", timestamp: Date.now() },
+    ],
+    tools: [],
+  } as never;
+}
+
+async function waitForQueryCall(): Promise<QueryCall> {
+  for (let i = 0; i < 100; i += 1) {
+    const call = queryCalls[0];
+    if (call) return call;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("timed out waiting for SDK query call");
+}
+
+async function nextInputMessage(iterator: AsyncIterator<SDKUserMessage>): Promise<SDKUserMessage> {
+  const result = await Promise.race([
+    iterator.next(),
+    new Promise<IteratorResult<SDKUserMessage>>((_, reject) => {
+      setTimeout(() => reject(new Error("timed out waiting for SDK input message")), 250);
+    }),
+  ]);
+  if (result.done) throw new Error("SDK input queue closed before yielding a message");
+  return result.value;
+}
+
+afterEach(() => {
+  for (const fakeQuery of fakeQueries.splice(0)) {
+    fakeQuery.close();
+  }
+  queryCalls.splice(0);
+});
+
 describe("streamClaudeAgentSdk tool continuation", () => {
+  it("starts a fresh continuation when compacted context trails tool results without an active turn", async () => {
+    const session = new ClaudeSession("pi-session");
+
+    streamClaudeAgentSdk(session, model, compactedToolResultContext(), {
+      sessionId: "pi-session",
+    } as never);
+
+    const call = await waitForQueryCall();
+    expect(typeof call.prompt).not.toBe("string");
+    const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
+
+    const handoff = await nextInputMessage(iterator);
+    expect(handoff.shouldQuery).toBe(false);
+    expect(handoff.message.content).toContain("<pi_handoff>");
+    expect(handoff.message.content).toContain("Compaction summary: user asked us to inspect post-compaction stalls.");
+    expect(handoff.message.content).toContain("TOOL RESULT FROM COMPACTION");
+
+    const prompt = await nextInputMessage(iterator);
+    expect(prompt.shouldQuery).toBe(true);
+    expect(prompt.message.content).toContain("Continue the interrupted work");
+    expect(prompt.message.content).not.toContain("Compaction summary:");
+
+    session.closeLiveQuery("test teardown");
+  });
+
+  it("resumes stale-looking tool-result contexts on a fresh signal by design", async () => {
+    const session = new ClaudeSession("pi-session");
+
+    streamClaudeAgentSdk(session, model, staleLookingToolResultContext(), {
+      sessionId: "pi-session",
+    } as never);
+
+    const call = await waitForQueryCall();
+    expect(typeof call.prompt).not.toBe("string");
+    const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
+
+    const handoff = await nextInputMessage(iterator);
+    expect(handoff.shouldQuery).toBe(false);
+    expect(handoff.message.content).toContain("<pi_handoff>");
+    expect(handoff.message.content).not.toContain("Compaction summary:");
+    expect(handoff.message.content).toContain("STALE LOOKING TOOL RESULT");
+
+    const prompt = await nextInputMessage(iterator);
+    expect(prompt.shouldQuery).toBe(true);
+    expect(prompt.message.content).toContain("Continue the interrupted work");
+
+    session.closeLiveQuery("test teardown");
+  });
+
+  it("starts ordinary fresh turns from the latest user prompt", async () => {
+    const session = new ClaudeSession("pi-session");
+
+    streamClaudeAgentSdk(session, model, freshTurnContext(), {
+      sessionId: "pi-session",
+    } as never);
+
+    const call = await waitForQueryCall();
+    expect(typeof call.prompt).not.toBe("string");
+    const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
+
+    const handoff = await nextInputMessage(iterator);
+    expect(handoff.shouldQuery).toBe(false);
+    expect(handoff.message.content).toContain("old prompt");
+
+    const prompt = await nextInputMessage(iterator);
+    expect(prompt.shouldQuery).toBe(true);
+    expect(prompt.message.content).toBe("latest fresh user prompt");
+
+    session.closeLiveQuery("test teardown");
+  });
+
+  it("keeps stale tool results as an aborted no-op without an active turn", async () => {
+    const session = new ClaudeSession("pi-session");
+    const controller = new AbortController();
+    controller.abort();
+
+    const stream = streamClaudeAgentSdk(session, model, compactedToolResultContext(), {
+      sessionId: "pi-session",
+      signal: controller.signal,
+    } as never);
+
+    const events: { type: string; reason?: string }[] = [];
+    for await (const event of stream) events.push(event as never);
+
+    expect(queryCalls).toHaveLength(0);
+    expect(events.at(-1)).toMatchObject({ type: "done", reason: "stop" });
+    expect(session.currentTurn()).toBeUndefined();
+  });
+
   it("fails aborted instead of resuming the subprocess when tool results arrive post-abort", async () => {
     const { session, pendingMcp } = sessionAwaitingToolResult("toolu_1");
 

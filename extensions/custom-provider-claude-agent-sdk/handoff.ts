@@ -102,7 +102,11 @@ function formatAgentMessageForHandoff(message: unknown): string | undefined {
   return undefined;
 }
 
-function joinHandoffSections(title: string, sections: string[]): string | undefined {
+function joinHandoffSections(
+  title: string,
+  sections: string[],
+  finalInstruction = "The user's next message follows in a separate turn.",
+): string | undefined {
   const cleaned: string[] = [];
   for (const section of sections.map((item) => item.trim()).filter(Boolean)) {
     const previous = cleaned[cleaned.length - 1];
@@ -114,7 +118,7 @@ function joinHandoffSections(title: string, sections: string[]): string | undefi
   }
   if (cleaned.length === 0) return undefined;
 
-  return `${title}\n\n<pi_handoff>\nPrior conversation context for continuity. Do not continue this transcript or imitate tool lines. If current work requires a tool, use the actual tool interface.\n\n${cleaned.join("\n\n")}\n</pi_handoff>\n\nThe user's next message follows in a separate turn.`;
+  return `${title}\n\n<pi_handoff>\nPrior conversation context for continuity. Do not continue this transcript or imitate tool lines. If current work requires a tool, use the actual tool interface.\n\n${cleaned.join("\n\n")}\n</pi_handoff>\n\n${finalInstruction}`;
 }
 
 function findCurrentPromptIndex(branch: SessionEntry[]): number {
@@ -181,6 +185,23 @@ export function buildContextMessagesHandoff(messages: unknown[]): string | undef
   debug("handoff:contextFallback", {
     totalMessages: messages.length,
     priorMessages: priorMessages.length,
+    sections: sections.length,
+    bytes: handoff?.length ?? 0,
+  });
+
+  return handoff;
+}
+
+export function buildContextMessagesContinuationHandoff(messages: unknown[]): string | undefined {
+  const sections = messages.map((message) => formatAgentMessageForHandoff(message)).filter(Boolean) as string[];
+  const handoff = joinHandoffSections(
+    "Pi context continuation handoff for Claude Agent SDK:",
+    sections,
+    "A continuation instruction follows in a separate turn.",
+  );
+
+  debug("handoff:contextContinuation", {
+    totalMessages: messages.length,
     sections: sections.length,
     bytes: handoff?.length ?? 0,
   });

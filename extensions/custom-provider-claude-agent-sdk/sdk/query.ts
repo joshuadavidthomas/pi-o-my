@@ -9,7 +9,7 @@ import {
   type SimpleStreamOptions,
   type Tool as PiTool,
 } from "@earendil-works/pi-ai";
-import { buildContextMessagesHandoff } from "../handoff.js";
+import { buildContextMessagesContinuationHandoff, buildContextMessagesHandoff } from "../handoff.js";
 import { PiStreamState, applyTurnUpdate } from "../pi-stream.js";
 import { ClaudeSession, ClaudeTurn } from "../session.js";
 import { buildPiMcpServer } from "../tools/mcp-server.js";
@@ -21,6 +21,14 @@ import { SdkInputQueue } from "./queue.js";
 import { debug } from "./debug.js";
 
 export type SdkQuery = ReturnType<typeof query>;
+
+type SessionQueryInput = {
+  handoff?: string;
+  prompt?: ReturnType<typeof extractLatestUserPrompt>;
+};
+
+const postCompactionToolResultContinuationPrompt =
+  "Continue the interrupted work using the Pi context handoff above. The latest visible entries may include tool results from before Pi compaction; treat them as historical context and continue the task from there. If more tool work is needed, use the available tool interface instead of referring to prior tool lines as live calls.";
 
 const require = createRequire(import.meta.url);
 
@@ -283,10 +291,24 @@ export function streamClaudeAgentSdk(
   }
 
   if (latestRole === "toolResult") {
-    debug("streamClaudeAgentSdk:route", { route: "stale-tool-result", messageCount, modelId: model.id });
-    const state = new PiStreamState(model, stream);
-    state.start();
-    queueMicrotask(() => state.finish("stop"));
+    if (options?.signal?.aborted) {
+      debug("streamClaudeAgentSdk:route", { route: "stale-tool-result", messageCount, modelId: model.id });
+      const state = new PiStreamState(model, stream);
+      state.start();
+      queueMicrotask(() => state.finish("stop"));
+      return stream;
+    }
+
+    // Provider calls with a non-aborted signal mean Pi wants an assistant
+    // response. Only same-call aborted tool-result callbacks should no-op;
+    // later fresh calls with orphaned trailing tool results must resume rather
+    // than emit the empty stop that stalls Pi's agent loop.
+    debug("streamClaudeAgentSdk:route", { route: "fresh-tool-result-continuation", messageCount, modelId: model.id });
+    session.resetContinuity("Fresh tool-result continuation from Pi context");
+    void runSessionQuery(session, model, stream, context, options, {
+      handoff: buildContextMessagesContinuationHandoff(context.messages),
+      prompt: postCompactionToolResultContinuationPrompt,
+    });
     return stream;
   }
 
@@ -327,6 +349,7 @@ async function runSessionQuery(
   stream: AssistantMessageEventStream,
   context: Context,
   options?: SimpleStreamOptions,
+  input?: SessionQueryInput,
 ) {
   debug("runSessionQuery:start", {
     messageCount: context.messages.length,
@@ -350,9 +373,10 @@ async function runSessionQuery(
 
   try {
     const plan = session.prepareForTurn();
-    const handoff = plan.skipHandoff
+    const handoff = input && "handoff" in input ? input.handoff : (plan.skipHandoff
       ? undefined
-      : plan.handoff ?? buildContextMessagesHandoff(context.messages);
+      : plan.handoff ?? buildContextMessagesHandoff(context.messages));
+    const prompt = input?.prompt ?? extractLatestUserPrompt(context);
     turn = session.beginTurn(new PiStreamState(model, stream));
     const activeTurn = turn;
     const mcpServer = buildPiMcpServer(context.tools, (toolName) => {
@@ -395,7 +419,7 @@ async function runSessionQuery(
         // when inference fires.
         inputMessages.push(toSdkUserMessage(handoff, { shouldQuery: false }));
       }
-      inputMessages.push(toSdkUserMessage(extractLatestUserPrompt(context)));
+      inputMessages.push(toSdkUserMessage(prompt));
       debug("runSessionQuery:push-input", {
         count: inputMessages.length,
         replay: false,
