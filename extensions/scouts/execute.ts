@@ -79,12 +79,9 @@ function formatDuration(ms: number): string {
 }
 
 const RUN_ID_PREFIX_BY_TOOL_NAME: Record<string, string> = {
-  worker: "wkr",
-  finder: "fnd",
-  oracle: "orc",
-  librarian: "lib",
-  specialist: "spc",
+  agent: "agt",
   reviewer: "rev",
+  "fact-check": "fct",
 };
 
 function scoutToolName(configName: string): string {
@@ -175,7 +172,7 @@ function appendMoreTimeRequest(output: string, moreTimeRequested: string, suspen
 }
 
 function formatResumeAffordance(suspension: ResultSuspensionInfo): string {
-  if (isWorkerSuspension(suspension)) {
+  if (hasToolResumeAffordance(suspension)) {
     return `Session suspended and resumable until ${formatExpiration(suspension.expiresAt)}: ${formatResumeInstruction(suspension)}`;
   }
 
@@ -183,7 +180,7 @@ function formatResumeAffordance(suspension: ResultSuspensionInfo): string {
 }
 
 function formatMoreTimeResumeLine(suspension: ResultSuspensionInfo): string {
-  if (isWorkerSuspension(suspension)) {
+  if (hasToolResumeAffordance(suspension)) {
     return `Resumable until ${formatExpiration(suspension.expiresAt)}: ${formatResumeInstruction(suspension)}`;
   }
 
@@ -191,15 +188,15 @@ function formatMoreTimeResumeLine(suspension: ResultSuspensionInfo): string {
 }
 
 function formatResumeInstruction(suspension: ResultSuspensionInfo): string {
-  return `call worker({ resume: "${suspension.runId}" }) with an optional follow-up query.`;
+  return `call agent({ resume: "${suspension.runId}" }) with an optional follow-up task.`;
 }
 
 function formatSuspensionNotice(suspension: ResultSuspensionInfo): string {
   return `Session suspended (runId ${suspension.runId}, expires ${formatExpiration(suspension.expiresAt)}).`;
 }
 
-function isWorkerSuspension(suspension: ResultSuspensionInfo): boolean {
-  return suspension.toolName === "worker";
+function hasToolResumeAffordance(suspension: ResultSuspensionInfo): boolean {
+  return suspension.toolName === "agent";
 }
 
 function summarizeToolsUsed(displayItems: ScoutRunDetails["displayItems"]): string | undefined {
@@ -322,7 +319,7 @@ function disposeSessionSafely(session: AgentSession): void {
 }
 
 function buildNotResumableResult(runId: string, reason: TakeSuspendedRunFailureReason): ScoutExecutionResult {
-  const text = `Run ${runId} is not resumable (${reason}). Dispatch a fresh worker with the full task instead.`;
+  const text = `Run ${runId} is not resumable (${reason}). Dispatch a fresh agent with the full task instead.`;
   return {
     content: [{ type: "text", text }],
     details: createErrorScoutDetails(`resume ${runId}`, text),

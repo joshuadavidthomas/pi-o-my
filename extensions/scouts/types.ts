@@ -42,7 +42,7 @@ export interface ScoutConfig {
   name: string;
   /** Wall-clock timeout in milliseconds. Defaults to 10 minutes. */
   timeoutMs?: number;
-  /** True for the mutating worker so suspended runs can reacquire the worker lock later. */
+  /** True for shared-checkout mutating runs so suspended runs can reacquire the mutation lock later. */
   isMutatingWorker?: boolean;
   /** Optional dynamic thinking level. Used for scout-specific effort knobs. */
   thinkingLevelForParams?: (params: Record<string, unknown>) => ThinkingLevel | undefined;

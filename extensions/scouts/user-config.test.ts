@@ -21,7 +21,7 @@ describe("loadScoutUserConfig", () => {
     writeConfig(root, `{
       // scout config
       "scouts": {
-        "oracle": {
+        "agent": {
           "models": [
             { "model": "anthropic/claude-opus-4-8", "thinkingLevel": "off" },
           ],
@@ -31,7 +31,7 @@ describe("loadScoutUserConfig", () => {
 
     const config = loadScoutUserConfig(root, tempDir());
 
-    expect(config.modelTargetsByScout.oracle).toEqual([
+    expect(config.modelTargetsByScout.agent).toEqual([
       { model: "anthropic/claude-opus-4-8", thinkingLevel: "off" },
     ]);
   });
@@ -41,8 +41,8 @@ describe("loadScoutUserConfig", () => {
     mkdirSync(join(home, ".pi", "agent"), { recursive: true });
     writeFileSync(join(home, ".pi", "agent", "scouts.jsonc"), JSON.stringify({
       scouts: {
-        oracle: { models: [{ model: "anthropic/global-oracle", thinkingLevel: "high" }] },
-        finder: { models: [{ model: "anthropic/global-finder", thinkingLevel: "low" }] },
+        agent: { models: [{ model: "anthropic/global-agent", thinkingLevel: "high" }] },
+        reviewer: { models: [{ model: "anthropic/global-reviewer", thinkingLevel: "low" }] },
       },
     }), "utf8");
 
@@ -51,26 +51,26 @@ describe("loadScoutUserConfig", () => {
     mkdirSync(child, { recursive: true });
     writeConfig(root, JSON.stringify({
       scouts: {
-        oracle: { models: [{ model: "anthropic/root-oracle", thinkingLevel: "high" }] },
+        agent: { models: [{ model: "anthropic/root-agent", thinkingLevel: "high" }] },
       },
     }));
     writeConfig(child, JSON.stringify({
       scouts: {
-        oracle: { models: [{ model: "anthropic/child-oracle", thinkingLevel: "medium" }] },
+        agent: { models: [{ model: "anthropic/child-agent", thinkingLevel: "medium" }] },
       },
     }));
 
     const config = loadScoutUserConfig(child, home);
 
-    expect(config.modelTargetsByScout.oracle).toEqual([{ model: "anthropic/child-oracle", thinkingLevel: "medium" }]);
-    expect(config.modelTargetsByScout.finder).toEqual([{ model: "anthropic/global-finder", thinkingLevel: "low" }]);
+    expect(config.modelTargetsByScout.agent).toEqual([{ model: "anthropic/child-agent", thinkingLevel: "medium" }]);
+    expect(config.modelTargetsByScout.reviewer).toEqual([{ model: "anthropic/global-reviewer", thinkingLevel: "low" }]);
   });
 
   it("rejects invalid config with a clear error", () => {
     const root = tempDir();
     writeConfig(root, JSON.stringify({
       scouts: {
-        oracle: { models: [{ model: "anthropic/claude-opus-4-8", thinkingLevel: "extreme" }] },
+        agent: { models: [{ model: "anthropic/claude-opus-4-8", thinkingLevel: "extreme" }] },
       },
     }));
 
@@ -84,7 +84,7 @@ describe("loadScoutUserConfig", () => {
     expect(() => loadScoutUserConfig(unknown, tempDir())).toThrow('unknown scout "nope"');
 
     const empty = tempDir();
-    writeConfig(empty, JSON.stringify({ scouts: { finder: { models: [] } } }));
+    writeConfig(empty, JSON.stringify({ scouts: { agent: { models: [] } } }));
     expect(() => loadScoutUserConfig(empty, tempDir())).toThrow("models must be a non-empty array");
   });
 });

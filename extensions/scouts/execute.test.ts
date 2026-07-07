@@ -17,7 +17,7 @@ type ScoutRunDetails = ScoutDetails["runs"][number];
 
 function resultRun(overrides: Partial<ScoutRunDetails> = {}): ScoutRunDetails {
   return {
-    runId: "wkr-4f2a",
+    runId: "agt-4f2a",
     status: "done",
     query: "do work",
     turns: 0,
@@ -65,10 +65,10 @@ describe("selectResumeFollowUpPrompt", () => {
 
 describe("resumeScout", () => {
   it("returns a typed not-resumable result when the run cannot be taken", async () => {
-    const result = await resumeScout("wkr-missing", undefined, undefined, undefined);
+    const result = await resumeScout("agt-missing", undefined, undefined, undefined);
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toBe("Run wkr-missing is not resumable (not_found). Dispatch a fresh worker with the full task instead.");
+    expect(result.content[0]?.text).toBe("Run agt-missing is not resumable (not_found). Dispatch a fresh agent with the full task instead.");
   });
 });
 
@@ -87,14 +87,14 @@ describe("buildScoutResultOutput", () => {
         ],
       }),
       {
-        runId: "wkr-4f2a",
-        toolName: "worker",
+        runId: "agt-4f2a",
+        toolName: "agent",
         suspendReason: "timeout",
         expiresAt: Date.UTC(2026, 0, 1, 12, 30, 0),
       },
     );
 
-    expect(output).toContain("Timed out after 10m (8 turns). Session suspended and resumable until 2026-01-01T12:30:00.000Z: call worker({ resume: \"wkr-4f2a\" }) with an optional follow-up query.");
+    expect(output).toContain("Timed out after 10m (8 turns). Session suspended and resumable until 2026-01-01T12:30:00.000Z: call agent({ resume: \"agt-4f2a\" }) with an optional follow-up task.");
     expect(output).toContain("Last activity:\nI updated the parser and am halfway through validation.");
     expect(output).toContain("Tools used: edit x2, bash x1 (last: edit src/parser.test.ts)");
   });
@@ -106,8 +106,8 @@ describe("buildScoutResultOutput", () => {
         moreTimeRequested: "run the browser integration checks",
       }),
       {
-        runId: "wkr-4f2a",
-        toolName: "worker",
+        runId: "agt-4f2a",
+        toolName: "agent",
         suspendReason: "more_time_requested",
         expiresAt: Date.UTC(2026, 0, 1, 12, 30, 0),
       },
@@ -119,7 +119,7 @@ describe("buildScoutResultOutput", () => {
       "",
       "---",
       "Scout requested more time. Remaining work: run the browser integration checks",
-      "Resumable until 2026-01-01T12:30:00.000Z: call worker({ resume: \"wkr-4f2a\" }) with an optional follow-up query.",
+      "Resumable until 2026-01-01T12:30:00.000Z: call agent({ resume: \"agt-4f2a\" }) with an optional follow-up task.",
     ].join("\n"));
   });
 
@@ -134,7 +134,26 @@ describe("buildScoutResultOutput", () => {
     expect(output).toBe("Timed out after 10 minutes");
   });
 
-  it("uses a generic suspension notice for non-worker scouts", () => {
+  it("uses an agent resume affordance for suspended agent runs", () => {
+    const output = buildScoutResultOutput(
+      resultRun({
+        runId: "agt-4f2a",
+        status: "aborted",
+        turns: 2,
+        summaryText: "Timed out after 10 minutes",
+      }),
+      {
+        runId: "agt-4f2a",
+        toolName: "agent",
+        suspendReason: "timeout",
+        expiresAt: Date.UTC(2026, 0, 1, 12, 30, 0),
+      },
+    );
+
+    expect(output).toContain("call agent({ resume: \"agt-4f2a\" }) with an optional follow-up task.");
+  });
+
+  it("uses a generic suspension notice for non-agent scouts", () => {
     const output = buildScoutResultOutput(
       resultRun({
         runId: "fnd-4f2a",
@@ -151,7 +170,7 @@ describe("buildScoutResultOutput", () => {
     );
 
     expect(output).toContain("Session suspended (runId fnd-4f2a, expires 2026-01-01T12:30:00.000Z).");
-    expect(output).not.toContain("worker({ resume:");
+    expect(output).not.toContain("agent({ resume:");
   });
 });
 

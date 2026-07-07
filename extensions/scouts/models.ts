@@ -6,7 +6,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 
-export type ScoutName = "finder" | "librarian" | "reviewer" | "worker" | "oracle" | "specialist" | "fact-check";
+export type ScoutName = "agent" | "reviewer" | "fact-check";
 
 export interface ScoutModelTarget {
   model: string;
@@ -26,15 +26,11 @@ export interface ResolvedScoutModel {
 }
 
 export const SCOUT_MODEL_TARGETS = {
-  finder: [
-    { model: "google-antigravity/gemini-3-flash-preview", thinkingLevel: "off" },
-    { model: "google/gemini-3-flash-preview", thinkingLevel: "off" },
-    { model: "claude-agent-sdk/claude-haiku-4-5", thinkingLevel: "low" },
-    { model: "anthropic/claude-haiku-4-5", thinkingLevel: "low" },
-  ],
-  librarian: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "off" },
-    { model: "openai/gpt-5.5", thinkingLevel: "off" },
+  agent: [
+    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
+    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
     { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
     { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
   ],
@@ -43,28 +39,6 @@ export const SCOUT_MODEL_TARGETS = {
     { model: "openai/gpt-5.5", thinkingLevel: "medium" },
     { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
     { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
-  ],
-  worker: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
-    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
-    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
-    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
-    { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
-    { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
-  ],
-  oracle: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "high" },
-    { model: "openai/gpt-5.5", thinkingLevel: "high" },
-    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
-    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
-  ],
-  specialist: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
-    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
-    { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
-    { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
-    { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
-    { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
   ],
   "fact-check": [
     { model: "openai-codex/gpt-5.5", thinkingLevel: "low" },
@@ -79,7 +53,7 @@ export const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high",
 
 export function defaultModelTargetsForScout(scoutName: string): ScoutModelTarget[] {
   const baseName = scoutName.split(":", 1)[0] as ScoutName;
-  return SCOUT_MODEL_TARGETS[baseName] ?? SCOUT_MODEL_TARGETS.specialist;
+  return SCOUT_MODEL_TARGETS[baseName] ?? SCOUT_MODEL_TARGETS.agent;
 }
 
 export function parseModelTarget(model: string | undefined, thinkingLevel?: ThinkingLevel): ScoutModelTarget | null {

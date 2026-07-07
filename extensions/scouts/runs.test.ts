@@ -50,8 +50,8 @@ function suspendedRun(overrides: Partial<SuspendedRunInput> = {}): SuspendedRunI
   return {
     runId,
     session: createMockSession(),
-    configName: "worker",
-    toolName: "worker",
+    configName: "agent:implementation",
+    toolName: "agent",
     isMutatingWorker: true,
     modelInfo: "provider/model",
     runDetails: runDetails(runId),
@@ -69,8 +69,8 @@ describe("suspended scout runs", () => {
     const ids = new Set<string>();
 
     for (let i = 0; i < 200; i++) {
-      const runId = generateRunId("wkr");
-      expect(runId).toMatch(/^wkr-[a-f0-9]{6}$/);
+      const runId = generateRunId("agt");
+      expect(runId).toMatch(/^agt-[a-f0-9]{6}$/);
       ids.add(runId);
     }
 

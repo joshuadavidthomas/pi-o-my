@@ -6,8 +6,8 @@ import { createReadTool, type ExtensionContext } from "@earendil-works/pi-coding
 import { createFactCheckTool } from "./tools/fact-check.ts";
 import { SCOUT_MODEL_TARGETS } from "../models.ts";
 import type { ScoutConfig } from "../types.ts";
-import { buildSpecialistSystemPrompt, buildSpecialistUserPrompt } from "../specialist/prompt.ts";
 import { createReadOnlyBashTool } from "../tools/read-only-bash.ts";
+import { buildReviewerSystemPrompt, buildReviewerUserPrompt } from "./prompt.ts";
 
 export const REVIEW_LENSES = ["hickey", "lowy", "grug", "beck", "muratori", "lamport", "ousterhout", "feathers"] as const;
 export type ReviewLens = (typeof REVIEW_LENSES)[number];
@@ -33,8 +33,8 @@ export function buildReviewerConfig(lens: ReviewLens): ScoutConfig {
   return {
     name: `reviewer:${lens}`,
     modelTargets: SCOUT_MODEL_TARGETS.reviewer,
-    buildSystemPrompt: (timeoutMs) => buildSpecialistSystemPrompt(content, timeoutMs, LENSES_DIR),
-    buildUserPrompt: buildSpecialistUserPrompt,
+    buildSystemPrompt: (timeoutMs) => buildReviewerSystemPrompt(content, timeoutMs, LENSES_DIR),
+    buildUserPrompt: buildReviewerUserPrompt,
     createTools: (cwd, ctx) => [
       createReadTool(cwd),
       createReadOnlyBashTool(cwd),

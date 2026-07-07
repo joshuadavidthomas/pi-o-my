@@ -1,9 +1,3 @@
-// System and user prompt builders for the specialist scout.
-//
-// Unlike other scouts, the specialist's system prompt is loaded from a
-// SKILL.md file on disk. The preamble orients the agent as an expert
-// executing under a wall-clock timeout, then the skill content follows.
-
 const PREAMBLE = `You are a specialist agent executing a focused task. You have domain expertise loaded below.
 
 Your job: apply this expertise to the task you are given. Be thorough, use your tools to investigate and verify, and produce a clear, actionable result.
@@ -18,9 +12,9 @@ Constraints:
 - You have a wall-clock timeout. Be efficient with tool calls.
 - Focus on the task. Do not go on tangents.`;
 
-export function buildSpecialistSystemPrompt(skillContent: string, timeoutMs: number, skillBaseDir?: string): string {
-  const baseDirHint = skillBaseDir
-    ? `\n\nSkill base directory: ${skillBaseDir}\nWhen the skill references \`{baseDir}\`, resolve it to this path. When it references relative paths, resolve them against this directory.`
+export function buildReviewerSystemPrompt(lensContent: string, timeoutMs: number, lensBaseDir?: string): string {
+  const baseDirHint = lensBaseDir
+    ? `\n\nLens base directory: ${lensBaseDir}\nWhen the lens references \`{baseDir}\`, resolve it to this path. When it references relative paths, resolve them against this directory.`
     : "";
 
   const timeoutMinutes = Math.round(timeoutMs / 60_000);
@@ -31,10 +25,10 @@ Timeout: ${timeoutMinutes} minutes. Keep the work focused and provide the best s
 
 ## Domain Expertise
 
-${skillContent}`;
+${lensContent}`;
 }
 
-export function buildSpecialistUserPrompt(params: Record<string, unknown>): string {
+export function buildReviewerUserPrompt(params: Record<string, unknown>): string {
   const task = String(params.task ?? "").trim();
   if (!task) return "No task provided.";
   return task;

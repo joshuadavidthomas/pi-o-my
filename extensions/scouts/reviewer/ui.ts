@@ -1,10 +1,10 @@
-import { getMarkdownTheme, ToolExecutionComponent, type ExtensionCommandContext, type MessageRenderOptions, type Theme } from "@earendil-works/pi-coding-agent";
-import { Container, Key, Markdown, matchesKey, Spacer, TUI, type Component, type Terminal } from "@earendil-works/pi-tui";
+import { getMarkdownTheme, type ExtensionCommandContext, type MessageRenderOptions, type Theme, type ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import { Container, Key, Markdown, matchesKey, Spacer, type Component } from "@earendil-works/pi-tui";
 
+import { ScoutResult } from "../render.ts";
 import type { ScoutDetails } from "../types.ts";
 import type { ReviewLens } from "./config.ts";
 import type { ReviewScoutResult } from "./run.ts";
-import { REVIEWER_TOOL } from "./tool.ts";
 
 export type ReviewLensResult = {
   lens: ReviewLens;
@@ -22,126 +22,39 @@ export type ScoutRenderResult = {
   isError: boolean;
 };
 
-const stubTerminal: Terminal = {
-  start() {},
-  stop() {},
-  async drainInput() {},
-  write() {},
-  get columns() {
-    return process.stdout.columns ?? 120;
-  },
-  get rows() {
-    return process.stdout.rows ?? 40;
-  },
-  get kittyProtocolActive() {
-    return false;
-  },
-  moveBy() {},
-  hideCursor() {},
-  showCursor() {},
-  clearLine() {},
-  clearFromCursor() {},
-  clearScreen() {},
-  setTitle() {},
-  setProgress() {},
-};
-const stubTui = new TUI(stubTerminal);
-
-class StripLeadingSpacer implements Component {
-  constructor(private readonly inner: Component) {}
-
-  invalidate(): void {
-    this.inner.invalidate();
-  }
-
-  render(width: number): string[] {
-    const lines = this.inner.render(width);
-    return lines[0] === "" ? lines.slice(1) : lines;
-  }
+function renderOptions(expanded: boolean, isPartial: boolean): ToolRenderResultOptions {
+  return { expanded, isPartial };
 }
 
-function reviewerToolArgs(lens: ReviewLens, result: ScoutRenderResult): Record<string, unknown> {
-  const run = result.details.runs[0];
-  return {
-    query: run?.query ?? `Review with the ${lens} lens`,
-    lens,
-  };
-}
-
-function updateReviewerToolComponent(
-  component: ToolExecutionComponent,
-  lens: ReviewLens,
-  result: ScoutRenderResult,
-  expanded: boolean,
-): void {
-  component.updateArgs(reviewerToolArgs(lens, result));
-  component.setExpanded(expanded);
-  component.updateResult(
-    {
-      content: result.content,
-      details: result.details,
-      isError: result.isError,
-    },
-    result.details.status === "running",
-  );
-}
-
-function createReviewerToolComponent(
-  lens: ReviewLens,
-  result: ScoutRenderResult,
-  tui: TUI,
-  cwd: string,
-  expanded: boolean,
-): ToolExecutionComponent {
-  const component = new ToolExecutionComponent(
-    "reviewer",
-    `review-${lens}`,
-    reviewerToolArgs(lens, result),
-    { showImages: false },
-    REVIEWER_TOOL,
-    tui,
-    cwd,
-  );
-  component.markExecutionStarted();
-  component.setArgsComplete();
-  updateReviewerToolComponent(component, lens, result, expanded);
-  return component;
-}
-
-function reviewerToolComponent(
-  lens: ReviewLens,
-  result: ScoutRenderResult,
-  tui: TUI,
-  cwd: string,
-  expanded: boolean,
-): Component {
-  return new StripLeadingSpacer(createReviewerToolComponent(lens, result, tui, cwd, expanded));
-}
-
-class LiveReviewToolComponent extends StripLeadingSpacer {
-  private readonly toolComponent: ToolExecutionComponent;
+class ReviewScoutResultComponent implements Component {
+  private readonly component: ScoutResult;
 
   constructor(
     private readonly lens: ReviewLens,
     result: ScoutRenderResult,
-    tui: TUI,
-    cwd: string,
     expanded: boolean,
+    theme: Theme,
   ) {
-    const toolComponent = createReviewerToolComponent(lens, result, tui, cwd, expanded);
-    super(toolComponent);
-    this.toolComponent = toolComponent;
+    this.component = new ScoutResult(result, renderOptions(expanded, result.details.status === "running"), theme, "reviewer", lens);
   }
 
-  update(result: ScoutRenderResult, expanded: boolean): void {
-    updateReviewerToolComponent(this.toolComponent, this.lens, result, expanded);
+  update(result: ScoutRenderResult, expanded: boolean, theme: Theme): void {
+    this.component.update(result, renderOptions(expanded, result.details.status === "running"), theme, () => this.invalidate());
+  }
+
+  invalidate(): void {
+    this.component.invalidate();
+  }
+
+  render(width: number): string[] {
+    return this.component.render(width);
   }
 }
 
 export class LiveReviewWidget extends Container {
-  private readonly tools = new Map<ReviewLens, LiveReviewToolComponent>();
+  private readonly tools = new Map<ReviewLens, ReviewScoutResultComponent>();
 
-  update(results: ReviewLensResult[], expanded: boolean, tui: TUI, cwd: string): void {
+  update(results: ReviewLensResult[], expanded: boolean, theme: Theme): void {
     const nextLenses = new Set<ReviewLens>();
     this.clear();
 
@@ -151,10 +64,10 @@ export class LiveReviewWidget extends Container {
 
       let component = this.tools.get(item.lens);
       if (!component) {
-        component = new LiveReviewToolComponent(item.lens, item.result, tui, cwd, expanded);
+        component = new ReviewScoutResultComponent(item.lens, item.result, expanded, theme);
         this.tools.set(item.lens, component);
       } else {
-        component.update(item.result, expanded);
+        component.update(item.result, expanded, theme);
       }
 
       if (index > 0) this.addChild(new Spacer(1));
@@ -175,9 +88,9 @@ export function setLiveReviewWidget(
 ): void {
   if (!ctx.hasUI) return;
 
-  ctx.ui.setWidget("review", (tui) => {
+  ctx.ui.setWidget("review", (_tui, theme) => {
     liveWidgetRef.current ??= new LiveReviewWidget();
-    liveWidgetRef.current.update(results, expanded, tui, ctx.cwd);
+    liveWidgetRef.current.update(results, expanded, theme);
     return liveWidgetRef.current;
   });
 }
@@ -209,7 +122,7 @@ export function installReviewInputHandler(
 }
 
 export class ReviewResultComponent extends Container {
-  constructor(details: ReviewMessageDetails | undefined, content: string, options: MessageRenderOptions, _theme: Theme) {
+  constructor(details: ReviewMessageDetails | undefined, content: string, options: MessageRenderOptions, theme: Theme) {
     super();
 
     if (!details?.results?.length) {
@@ -220,8 +133,7 @@ export class ReviewResultComponent extends Container {
     for (let index = 0; index < details.results.length; index += 1) {
       const item = details.results[index]!;
       if (index > 0) this.addChild(new Spacer(1));
-      const component = reviewerToolComponent(item.lens, item.result, stubTui, details.cwd, options.expanded);
-      this.addChild(component);
+      this.addChild(new ScoutResult(item.result, renderOptions(options.expanded, false), theme, "reviewer", item.lens));
     }
   }
 }
