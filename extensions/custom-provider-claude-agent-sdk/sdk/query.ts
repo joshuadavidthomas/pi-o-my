@@ -16,7 +16,7 @@ import { buildPiMcpServer } from "../tools/mcp-server.js";
 import { MCP_SERVER_NAME, MCP_TOOL_PREFIX } from "../tools/names.js";
 import { createMcpTextResult, extractToolResults } from "../tools/results.js";
 import { extractSessionId, parseClaudeMessage } from "./events.js";
-import { extractLatestUserPrompt, toSdkPrompt } from "./prompt.js";
+import { extractLatestUserPrompt, piContentToSdkPromptContent, toSdkPrompt, type PromptBlock } from "./prompt.js";
 import { SdkInputQueue } from "./queue.js";
 import { debug } from "./debug.js";
 
@@ -187,6 +187,33 @@ async function runOneShotQuery(
   }
 }
 
+// Pi delivers mid-turn user follow-ups (steering) appended after the tool
+// results: [..., assistant(toolUse), toolResult+, user+]. Returns the steering
+// user contents when the trailing segment has exactly that shape, else null.
+function extractSteeringSegment(context: Context): (string | PromptBlock[])[] | null {
+  const steering: (string | PromptBlock[])[] = [];
+  let sawToolResult = false;
+
+  for (let i = context.messages.length - 1; i >= 0; i--) {
+    const message = context.messages[i];
+    if (message.role === "assistant") break;
+    if (message.role === "toolResult") {
+      sawToolResult = true;
+      continue;
+    }
+    if (message.role === "user") {
+      // A user message *before* the tool results is not the steering shape.
+      if (sawToolResult) return null;
+      const content = piContentToSdkPromptContent(message.content);
+      if (typeof content !== "string" || content.length > 0) steering.unshift(content);
+      continue;
+    }
+    return null;
+  }
+
+  return sawToolResult && steering.length > 0 ? steering : null;
+}
+
 export function streamClaudeAgentSdk(
   session: ClaudeSession,
   model: Model<Api>,
@@ -218,6 +245,36 @@ export function streamClaudeAgentSdk(
     activeTurn.toolBridge.deliverToolResults(extractToolResults(context));
     void finishToolContinuation(session, activeTurn, options?.signal);
     return stream;
+  }
+
+  if (activeTurn && latestRole === "user") {
+    const steering = extractSteeringSegment(context);
+    if (steering) {
+      if (options?.signal?.aborted) {
+        debug("streamClaudeAgentSdk:route", { route: "aborted-steering-continuation", messageCount, modelId: model.id });
+        session.closeLiveQuery("Operation aborted during tool execution");
+        const state = new PiStreamState(model, stream);
+        state.start();
+        state.fail("Claude Agent SDK request aborted", true);
+        return stream;
+      }
+
+      // Killing the live query here (the old "Turn replaced" path) strands the
+      // subprocess's pending MCP tool calls — they reject with stream-closed
+      // errors and the chain breaks. Instead deliver the tool results and push
+      // the follow-up through the input queue, the SDK's native steering path.
+      debug("streamClaudeAgentSdk:route", { route: "steering-continuation", steeringCount: steering.length, messageCount, modelId: model.id });
+      activeTurn.attachStreamState(new PiStreamState(model, stream));
+      activeTurn.toolBridge.deliverToolResults(extractToolResults(context));
+      for (const content of steering) {
+        if (!session.pushUserMessage(toSdkUserMessage(content))) {
+          session.closeLiveQuery("Claude SDK input stream closed while delivering steering");
+          return stream;
+        }
+      }
+      void finishToolContinuation(session, activeTurn, options?.signal);
+      return stream;
+    }
   }
 
   if (activeTurn) {

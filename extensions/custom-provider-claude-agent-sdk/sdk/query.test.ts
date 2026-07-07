@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { PiStreamState } from "../pi-stream.ts";
 import { ClaudeSession } from "../session.ts";
 import { streamClaudeAgentSdk } from "./query.ts";
+import { SdkInputQueue } from "./queue.ts";
 
 const model = {
   api: "claude-agent-sdk",
@@ -70,6 +71,47 @@ describe("streamClaudeAgentSdk tool continuation", () => {
     expect(mcpResult.isError).toBe(true);
 
     expect(session.currentTurn()).toBeUndefined();
+  });
+
+  it("steers the live turn instead of replacing it when a user follow-up trails the tool results", async () => {
+    const { session, turn, pendingMcp } = sessionAwaitingToolResult("toolu_1");
+    const inputQueue = new SdkInputQueue();
+    session.startLiveQuery(
+      { query: { close() {} } as never, inputQueue, abort: new AbortController() },
+      { modelId: "test-model" },
+    );
+
+    const context = {
+      systemPrompt: "",
+      messages: [
+        {
+          role: "toolResult",
+          toolCallId: "toolu_1",
+          toolName: "read",
+          content: [{ type: "text", text: "file contents" }],
+          isError: false,
+          timestamp: Date.now(),
+        },
+        { role: "user", content: "actually, focus on the abort path", timestamp: Date.now() },
+      ],
+      tools: [],
+    } as never;
+
+    streamClaudeAgentSdk(session, model, context, { sessionId: "pi-session" } as never);
+
+    // The turn survives and the tool result reaches the pending MCP call.
+    expect(session.currentTurn()).toBe(turn);
+    const mcpResult = await pendingMcp;
+    expect(mcpResult.isError).toBeFalsy();
+    expect(mcpResult.content).toEqual([{ type: "text", text: "file contents" }]);
+
+    // The follow-up went into the live input queue as a steering message.
+    const next = await inputQueue[Symbol.asyncIterator]().next();
+    expect(next.done).toBe(false);
+    expect(next.value?.message.content).toBe("actually, focus on the abort path");
+    expect(next.value?.shouldQuery).toBe(true);
+
+    session.closeLiveQuery("test teardown");
   });
 
   it("delivers tool results to the pending MCP call when not aborted", async () => {
