@@ -200,6 +200,19 @@ export function streamClaudeAgentSdk(
   const messageCount = context.messages.length;
 
   if (activeTurn && latestRole === "toolResult") {
+    // Pi's agent loop calls the provider again with tool results even after the
+    // user aborts mid-tool-execution, expecting an immediate stopReason:
+    // "aborted" back. Delivering the results instead would resume the SDK
+    // subprocess's own agentic loop — it keeps firing tool calls after ESC.
+    if (options?.signal?.aborted) {
+      debug("streamClaudeAgentSdk:route", { route: "aborted-tool-continuation", messageCount, modelId: model.id });
+      session.closeLiveQuery("Operation aborted during tool execution");
+      const state = new PiStreamState(model, stream);
+      state.start();
+      state.fail("Claude Agent SDK request aborted", true);
+      return stream;
+    }
+
     debug("streamClaudeAgentSdk:route", { route: "tool-continuation", messageCount, modelId: model.id });
     activeTurn.attachStreamState(new PiStreamState(model, stream));
     activeTurn.toolBridge.deliverToolResults(extractToolResults(context));
@@ -295,13 +308,8 @@ async function runSessionQuery(
       return currentTurn.toolBridge.handleMcpToolCall(toolName);
     });
 
-    await ensureLiveQuery(session, model, context, options, mcpServer);
-    await session.setModel(model.id);
-    await session.setMcpServers(
-      mcpServer ? { [MCP_SERVER_NAME]: mcpServer } : {},
-      fingerprintTools(context.tools),
-    );
-
+    // Register before any await: listeners added to an already-aborted signal
+    // never fire, so an ESC landing during connection setup would be lost.
     const abortPending = () => {
       debug("runSessionQuery:signal-abort");
       session.closeLiveQuery("Operation aborted");
@@ -310,6 +318,19 @@ async function runSessionQuery(
 
     let noOutputTimer: ReturnType<typeof setTimeout> | undefined;
     try {
+      await ensureLiveQuery(session, model, context, options, mcpServer);
+      await session.setModel(model.id);
+      await session.setMcpServers(
+        mcpServer ? { [MCP_SERVER_NAME]: mcpServer } : {},
+        fingerprintTools(context.tools),
+      );
+      // An abort during setup may have raced connection creation: the listener
+      // closed whatever was live at the time, but ensureLiveQuery could have
+      // spawned a fresh connection afterwards. Never push a prompt post-abort.
+      if (options?.signal?.aborted) {
+        throw new Error("Claude Agent SDK request aborted");
+      }
+
       const inputMessages: SDKUserMessage[] = [];
       if (handoff) {
         // shouldQuery: false appends the handoff to the SDK transcript without
