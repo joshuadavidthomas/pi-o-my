@@ -3,7 +3,7 @@ type: plan
 repo: pi-o-my
 branch: working-copy
 sha: ced94441
-status: blocked
+status: implemented
 source_structure_outline: .agents/plans/features/claude-agent-sdk-native-reseed/002-structure-outline.md
 ---
 
@@ -19,16 +19,16 @@ source_structure_outline: .agents/plans/features/claude-agent-sdk-native-reseed/
 
 ## Status
 
-- **Status:** Blocked at the production-shaped Fable gate on 2026-07-10
+- **Status:** Implemented with Claude compact-state emulation on 2026-07-10
 - **Effort:** L
 - **Risk:** HIGH — relies on a pinned but private Claude JSONL entry format
 - **Planned at:** jj revision `ced94441`, 2026-07-10
-- **Execution result:** Minimal native assistant text and a minimal completed tool pair both resume successfully on `claude-fable-5`. A realistic retained assistant turn containing narration followed by `tool_use` still triggers the original anti-distillation refusal. Production implementation was abandoned per the STOP condition.
+- **Execution result:** Ordinary native-role replay failed for realistic narration plus tool use. A follow-up probe reproduced Claude's own `compact_boundary` + `isCompactSummary` shape; the production encoder now places Pi's summary and retained recent details inside that envelope. It passes on `claude-fable-5` and resumes twice without tool replay.
 - **Preserved artifact:** Authenticated probe commit `nlylqxpu` (`test: prove native Claude transcript resume`).
 
 ## Why This Matters
 
-Pi's compaction summary and kept-recent selection are the desired source of truth. The Claude Agent SDK provider currently rebuilds that context as one synthetic user message after compaction, so prior assistant and tool output appears to Anthropic as user-supplied model output. Fable 5 rejects the request under the anti-duplication policy. This plan preserves Pi compaction while translating the rebuilt context into a fresh Claude transcript with native roles and resuming it through the SDK's `SessionStore` seam.
+Pi's compaction summary and kept-recent selection are the desired source of truth. The Claude Agent SDK provider currently rebuilds that context as one synthetic user message after compaction, so prior assistant and tool output appears to Anthropic as user-supplied model output. Fable 5 rejects the request under the anti-duplication policy. This implementation preserves Pi compaction while translating the rebuilt context into Claude's native compacted-session shape and resuming it through the SDK's `SessionStore` seam.
 
 ## Standards Concern
 
@@ -38,8 +38,8 @@ This is a provider/runtime boundary. Follow `coding-standards/references/boundar
 
 - Pi's `compact()` implementation, summary, cut point, kept-recent messages, split-turn behavior, and tree history stay unchanged.
 - The current user prompt is sent exactly once and is not embedded in the seed.
-- Retained assistant output is encoded as native assistant history.
-- Completed historical tool calls and results retain IDs and native pairing and are never replayed.
+- Retained assistant output and completed tool details are preserved inside Claude's native compact-summary entry.
+- Completed historical tools are context only and are never replayed.
 - A successful reseed becomes ordinary resumable Claude continuity.
 - Query closure and Pi process restart can resume through a durable Pi-owned store.
 - Unsupported conversion, corrupt storage, or SDK format drift fails explicitly without flattening or dropping context.
@@ -502,18 +502,15 @@ Stop and write a handback if:
 - [ ] README documents storage, opt-in gate, and pinned-format maintenance obligation.
 - [ ] No unrelated scout changes are included in implementation commits.
 
-## Execution Handback
+## Execution Result
 
-The probe established a narrower boundary than the design assumed:
+The first probe established a narrower boundary than the original design assumed:
 
 - Fable accepts seeded native user → assistant text history.
-- Fable accepts seeded user → assistant `tool_use` → user `tool_result` → assistant text history when the tool-use assistant entry has no preceding narration block.
-- Fable rejects a production-shaped assistant turn containing a text/narration block followed by a tool-use block, even when each block is encoded as its own native assistant JSONL entry with valid parent UUIDs and the tool result is paired correctly.
-- Combining text and tool-use blocks in one assistant entry also rejects.
-- Giving split blocks shared versus distinct fabricated message/request IDs does not change the refusal.
-- The refusal is the same reverse-engineering/model-output-duplication policy response reported after Pi compaction.
+- Fable accepts a minimal seeded completed tool turn.
+- Fable rejects ordinary imported assistant narration followed by tool use, regardless of combined/split entries or shared/distinct fabricated API message IDs.
 
-The production implementation was removed rather than shipping a lossy adapter that drops assistant narration or silently falls back to flattened context. A future direction needs a new product/SDK seam or explicit Anthropic guidance for importing model-authored multi-block turns; further private JSONL reshaping is not justified by current evidence.
+A follow-up probe inspected Claude's real post-`/compact` transcript shape and found the missing semantic marker: a `compact_boundary` system entry followed by an `isCompactSummary` user entry. Encoding Pi's summary and exact retained recent text/tool details inside that compact-summary entry passes the realistic Fable probe. The production encoder passes a second resume as well, and an unsynchronized first turn is retried with a fresh seed to avoid duplicate prompt submission.
 
 ## Executor Notes
 

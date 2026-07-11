@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from "bun:test";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { encodePiMessages } from "../native-reseed.js";
 import {
   InMemorySessionStore,
   query,
@@ -34,19 +35,11 @@ function envelope(sessionId: string, cwd: string, parentUuid: string | null, uui
 }
 
 async function createConfigDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "pi-claude-session-store-"));
-  temporaryDirectories.push(directory);
-
-  const source = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
-  await mkdir(directory, { recursive: true });
-  for (const filename of [".credentials.json", "settings.json"]) {
-    try {
-      await copyFile(join(source, filename), join(directory, filename));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-  }
-  return directory;
+  // SessionStore keeps probe transcripts out of ~/.claude/projects. Reuse the
+  // real config directory so OAuth refresh-token rotation is persisted there;
+  // copying credentials into disposable directories can invalidate the source
+  // refresh token without updating it.
+  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
 }
 
 function assistantEntry(
@@ -90,6 +83,41 @@ function userEntry(
     type: "user",
     message: { role: "user", content },
   };
+}
+
+function compactBoundaryEntry(
+  sessionId: string,
+  cwd: string,
+  logicalParentUuid: string,
+  uuid: string,
+  preservedUuids: string[],
+): SessionStoreEntry {
+  return {
+    ...envelope(sessionId, cwd, null, uuid),
+    logicalParentUuid,
+    type: "system",
+    subtype: "compact_boundary",
+    content: "Conversation compacted",
+    level: "info",
+    compactMetadata: {
+      trigger: "manual",
+      preTokens: 100_000,
+      postTokens: 1_000,
+      cumulativeDroppedTokens: 99_000,
+      durationMs: 1,
+      preCompactDiscoveredTools: [],
+      preservedSegment: {
+        headUuid: preservedUuids[0],
+        anchorUuid: preservedUuids[0],
+        tailUuid: preservedUuids.at(-1),
+      },
+      preservedMessages: {
+        anchorUuid: preservedUuids[0],
+        uuids: preservedUuids,
+        allUuids: preservedUuids,
+      },
+    },
+  } as SessionStoreEntry;
 }
 
 async function runResume(
@@ -178,6 +206,88 @@ integration("native SessionStore transcript resume", () => {
       "Reply with only that same project codename again.",
     );
     expect(second.text).toContain("NATIVE-ORCHID-731");
+  }, 120_000);
+
+  it("resumes Claude-style compacted state with retained narration and completed tool history", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-claude-compact-state-cwd-"));
+    temporaryDirectories.push(cwd);
+    const configDirectory = await createConfigDirectory();
+    const store = new InMemorySessionStore();
+    const sessionId = crypto.randomUUID();
+    const oldTailUuid = crypto.randomUUID();
+    const boundaryUuid = crypto.randomUUID();
+    const summaryUuid = crypto.randomUUID();
+    const preservedUuids = [oldTailUuid];
+
+    const summary = {
+      ...userEntry(
+        sessionId,
+        cwd,
+        boundaryUuid,
+        summaryUuid,
+        "This session is being continued from an earlier conversation.\n\nSummary:\nThe project is testing compacted context continuity.\n\nRetained recent messages:\nUser: Use the completed lookup to remember the codename.\nAssistant: I will use the completed historical lookup.\nAssistant tool call: lookup({ key: codename })\nTool result: Historical result: COMPACT-CEDAR-583\nAssistant: The completed lookup returned COMPACT-CEDAR-583.\n\nContinue from that state.",
+      ),
+      isVisibleInTranscriptOnly: true,
+      isCompactSummary: true,
+    } as SessionStoreEntry;
+
+    await store.append(
+      { projectKey: projectKeyFor(cwd), sessionId },
+      [
+        compactBoundaryEntry(sessionId, cwd, oldTailUuid, boundaryUuid, preservedUuids),
+        summary,
+      ],
+    );
+
+    const result = await runResume(
+      sessionId,
+      store,
+      cwd,
+      configDirectory,
+      "Reply with only the codename from the retained completed lookup. Do not call tools.",
+    );
+    expect(result.text).toContain("COMPACT-CEDAR-583");
+    expect(result.toolUses).toBe(0);
+  }, 120_000);
+
+  it("accepts production compact-state encoding and resumes it twice", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-claude-production-compact-cwd-"));
+    temporaryDirectories.push(cwd);
+    const configDirectory = await createConfigDirectory();
+    const store = new InMemorySessionStore();
+    const sessionId = crypto.randomUUID();
+    const entries = encodePiMessages([
+      { role: "compactionSummary", summary: "The project continuity probe is active." },
+      { role: "user", content: "Use the completed lookup to remember the codename." },
+      { role: "assistant", content: [
+        { type: "text", text: "I will use the completed historical lookup." },
+        { type: "toolCall", id: "toolu_production_compact", name: "lookup", arguments: { key: "codename" } },
+      ] },
+      { role: "toolResult", toolCallId: "toolu_production_compact", toolName: "lookup", content: [
+        { type: "text", text: "Historical result: PRODUCTION-PINE-427" },
+      ] },
+      { role: "assistant", content: [{ type: "text", text: "The completed lookup returned PRODUCTION-PINE-427." }] },
+    ], sessionId, cwd);
+    await store.append({ projectKey: projectKeyFor(cwd), sessionId }, entries);
+
+    const first = await runResume(
+      sessionId,
+      store,
+      cwd,
+      configDirectory,
+      "Reply with only the codename from the compacted completed lookup. Do not call tools.",
+    );
+    expect(first.text).toContain("PRODUCTION-PINE-427");
+    expect(first.toolUses).toBe(0);
+
+    const second = await runResume(
+      sessionId,
+      store,
+      cwd,
+      configDirectory,
+      "Reply with only that same codename again.",
+    );
+    expect(second.text).toContain("PRODUCTION-PINE-427");
   }, 120_000);
 
   it("resumes completed historical tool use without replaying it", async () => {

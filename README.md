@@ -68,7 +68,11 @@ Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It regi
 
 The provider runs one live streaming SDK query per active pi session/branch. Claude sees pi tools through an in-process MCP server, but pi still executes the tools, renders them, records tool calls/results, and applies its normal permission and extension hooks. Built-in Claude Code tools are disabled so tool execution stays pi-native.
 
-Session continuity is persisted in pi custom session entries and restored on resume. Structural boundaries such as `/compact`, `/new`, forks, and branch/tree switches close/reset the live SDK query as needed; model switching away and back closes the process without resetting SDK continuity for the same pi session. Print mode closes the live query after each final turn so CLI invocations exit.
+Session continuity is persisted in pi custom session entries and restored on resume. After `/compact`, pi remains the compaction owner and the provider seeds Pi's summary and retained recent messages inside Claude's native compacted-session envelope. This avoids presenting prior assistant/tool output as an ordinary new user request, which Fable rejects. These private transcripts live under the configured pi agent directory at `state/claude-agent-sdk/sessions/`; they are not removed automatically because old pi branches may still reference them.
+
+The transcript encoder targets the pinned Claude Agent SDK/CLI format. Run `PI_CLAUDE_AGENT_SDK_RUN_INTEGRATION=1 bun test ./extensions/custom-provider-claude-agent-sdk/sdk/session-store.integration.test.ts` before upgrading that dependency. Ordinary tests skip this authenticated gate.
+
+Structural boundaries such as `/new`, forks, and branch/tree switches close/reset the live SDK query as needed; model switching away and back closes the process without resetting SDK continuity for the same pi session. Print mode closes the live query after each final turn so CLI invocations exit.
 
 #### [dcg](./extensions/dcg.ts)
 

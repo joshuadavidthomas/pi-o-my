@@ -10,6 +10,7 @@ import {
   type Tool as PiTool,
 } from "@earendil-works/pi-ai";
 import { buildContextMessagesContinuationHandoff, buildContextMessagesHandoff } from "../handoff.js";
+import { seedPiMessages, storeForPiSession } from "../native-reseed.js";
 import { PiStreamState, applyTurnUpdate } from "../pi-stream.js";
 import { ClaudeSession, ClaudeTurn } from "../session.js";
 import { buildPiMcpServer } from "../tools/mcp-server.js";
@@ -304,9 +305,12 @@ export function streamClaudeAgentSdk(
     // later fresh calls with orphaned trailing tool results must resume rather
     // than emit the empty stop that stalls Pi's agent loop.
     debug("streamClaudeAgentSdk:route", { route: "fresh-tool-result-continuation", messageCount, modelId: model.id });
-    session.resetContinuity("Fresh tool-result continuation from Pi context");
+    const compactReseedPending = session.continuityState().reseedPending;
+    if (!compactReseedPending) {
+      session.resetContinuity("Fresh tool-result continuation from Pi context");
+    }
     void runSessionQuery(session, model, stream, context, options, {
-      handoff: buildContextMessagesContinuationHandoff(context.messages),
+      ...(compactReseedPending ? {} : { handoff: buildContextMessagesContinuationHandoff(context.messages) }),
       prompt: postCompactionToolResultContinuationPrompt,
     });
     return stream;
@@ -373,10 +377,29 @@ async function runSessionQuery(
 
   try {
     const plan = session.prepareForTurn();
-    const handoff = input && "handoff" in input ? input.handoff : (plan.skipHandoff
-      ? undefined
-      : plan.handoff ?? buildContextMessagesHandoff(context.messages));
+    const handoff = input && "handoff" in input ? input.handoff : (plan.kind === "cold"
+      ? plan.handoff ?? buildContextMessagesHandoff(context.messages)
+      : undefined);
     const prompt = input?.prompt ?? extractLatestUserPrompt(context);
+    if (plan.kind === "reseed") {
+      // An unsynchronized seed may already contain the current prompt in its
+      // mirrored SDK transcript. Never resume it after a restart and submit
+      // that Pi prompt twice; create a new seed attempt instead.
+      if (session.continuityState().sdkSessionId) {
+        session.requestReseed("Retrying unsynchronized compact reseed");
+      }
+      let seedMessages = context.messages;
+      if (!input?.prompt) {
+        let currentPromptIndex = -1;
+        for (let index = context.messages.length - 1; index >= 0; index -= 1) {
+          if (context.messages[index]?.role === "user") { currentPromptIndex = index; break; }
+        }
+        if (currentPromptIndex < 0) throw new Error("Cannot reseed Claude transcript without a current user prompt");
+        seedMessages = context.messages.slice(0, currentPromptIndex);
+      }
+      const seeded = await seedPiMessages(session.piSessionId, seedMessages, process.cwd());
+      session.markSeededSession(seeded.sessionId);
+    }
     turn = session.beginTurn(new PiStreamState(model, stream));
     const activeTurn = turn;
     const mcpServer = buildPiMcpServer(context.tools, (toolName) => {
@@ -511,7 +534,8 @@ async function ensureLiveQuery(
     return;
   }
 
-  const resumeSessionId = session.continuityState().sdkSessionId ?? undefined;
+  const continuity = session.continuityState();
+  const resumeSessionId = continuity.sdkSessionId ?? undefined;
   debug("ensureLiveQuery", {
     reused: false,
     modelId: model.id,
@@ -528,6 +552,7 @@ async function ensureLiveQuery(
     options: {
       ...baseQueryOptions(model, abortController),
       resume: resumeSessionId,
+      ...(resumeSessionId && continuity.storeBacked ? { sessionStore: storeForPiSession(session.piSessionId) } : {}),
       allowedTools: [`${MCP_TOOL_PREFIX}*`],
       permissionMode: "bypassPermissions",
       maxTurns: 999,
@@ -536,16 +561,17 @@ async function ensureLiveQuery(
     },
   });
 
-  void consumeLiveQuery(session, sdkQuery);
   session.startLiveQuery(
     { query: sdkQuery, inputQueue, abort: abortController },
     { resumeSessionId, modelId: model.id },
   );
+  void consumeLiveQuery(session, sdkQuery);
 }
 
 async function consumeLiveQuery(session: ClaudeSession, sdkQuery: ReturnType<typeof query>) {
   try {
     for await (const message of sdkQuery) {
+      if (session.liveQuery() !== sdkQuery) continue;
       debug("consumeLiveQuery:message", () => ({
         type: message.type,
         ...(message.type === "assistant" ? {
@@ -599,6 +625,10 @@ async function consumeLiveQuery(session: ClaudeSession, sdkQuery: ReturnType<typ
       session.abortActiveTurn(errorMessage(error));
     }
   } finally {
+    if (session.liveQuery() !== sdkQuery) {
+      debug("consumeLiveQuery:end", { isLive: false, skipped: "superseded-query" });
+      return;
+    }
     const activeTurn = session.currentTurn();
     const currentState = activeTurn?.streamState();
     if (currentState && !currentState.finished) {

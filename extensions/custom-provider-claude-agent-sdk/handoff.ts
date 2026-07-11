@@ -69,7 +69,7 @@ function formatAgentMessageForHandoff(message: unknown): string | undefined {
   if (entry.role === "assistant") {
     const text = extractContentText(entry.content);
     const toolCalls = formatToolCall(entry.content);
-    return [text ? `Assistant:\n${text}` : undefined, toolCalls].filter(Boolean).join("\n\n");
+    return [text ? `Response:\n${text}` : undefined, toolCalls].filter(Boolean).join("\n\n");
   }
 
   if (entry.role === "toolResult") {
@@ -118,7 +118,7 @@ function joinHandoffSections(
   }
   if (cleaned.length === 0) return undefined;
 
-  return `${title}\n\n<pi_handoff>\nPrior conversation context for continuity. Do not continue this transcript or imitate tool lines. If current work requires a tool, use the actual tool interface.\n\n${cleaned.join("\n\n")}\n</pi_handoff>\n\n${finalInstruction}`;
+  return `${title}\n\n<session_state>\nPrior task state preserved by Pi compaction. If current work requires a tool, use the available tool interface.\n\n${cleaned.join("\n\n")}\n</session_state>\n\n${finalInstruction}`;
 }
 
 function findCurrentPromptIndex(branch: SessionEntry[]): number {
@@ -208,3 +208,4 @@ export function buildContextMessagesContinuationHandoff(messages: unknown[]): st
 
   return handoff;
 }
+

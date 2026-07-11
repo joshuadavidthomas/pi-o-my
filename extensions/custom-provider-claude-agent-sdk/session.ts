@@ -15,6 +15,8 @@ export interface SessionContinuity {
   sdkSessionId: string | null;
   syncedThroughEntryId: string | null;
   lastClaudeModelId: string | null;
+  reseedPending: boolean;
+  storeBacked: boolean;
 }
 
 interface SessionEventEntry {
@@ -44,6 +46,8 @@ function loadContinuity(sessionManager: SessionManager): SessionContinuity {
     sdkSessionId: null,
     syncedThroughEntryId: null,
     lastClaudeModelId: null,
+    reseedPending: false,
+    storeBacked: false,
   };
 
   const branch = sessionManager.getBranch();
@@ -56,7 +60,7 @@ function loadContinuity(sessionManager: SessionManager): SessionContinuity {
 
     const value = entry.data;
     if (!value || typeof value !== "object") {
-      data = { sdkSessionId: null, syncedThroughEntryId: null, lastClaudeModelId: null };
+      data = { sdkSessionId: null, syncedThroughEntryId: null, lastClaudeModelId: null, reseedPending: false, storeBacked: false };
       continue;
     }
     const record = value as Record<string, unknown>;
@@ -64,6 +68,8 @@ function loadContinuity(sessionManager: SessionManager): SessionContinuity {
       sdkSessionId: typeof record.sdkSessionId === "string" ? record.sdkSessionId : null,
       syncedThroughEntryId: typeof record.syncedThroughEntryId === "string" ? record.syncedThroughEntryId : null,
       lastClaudeModelId: typeof record.lastClaudeModelId === "string" ? record.lastClaudeModelId : null,
+      reseedPending: record.reseedPending === true,
+      storeBacked: record.storeBacked === true,
     };
   }
 
@@ -200,7 +206,7 @@ export class ClaudeSessionManager {
       hasSession: Boolean(session),
     });
     session?.setSessionManager(sessionManager);
-    session?.resetContinuity("Structural change");
+    session?.requestReseed("Pi compaction");
   }
 
   markSessionSynced(sessionManager: SessionManager, leafId: string) {
@@ -229,9 +235,10 @@ export class ClaudeSessionManager {
   }
 }
 
-type TurnHandoffPlan =
-  | { skipHandoff: true }
-  | { skipHandoff: false; handoff: string | undefined };
+export type TurnHandoffPlan =
+  | { kind: "continue" }
+  | { kind: "reseed" }
+  | { kind: "cold"; handoff: string | undefined };
 
 interface LiveSdkConnection {
   query: SdkQuery;
@@ -247,6 +254,7 @@ type ContinuityState =
   | { kind: "starting" }
   | { kind: "resumable" }
   | { kind: "stale"; reason: string }
+  | { kind: "reseed" }
   | { kind: "cold" };
 
 export class ClaudeSession {
@@ -272,6 +280,8 @@ export class ClaudeSession {
       sdkSessionId: data?.sdkSessionId ?? null,
       syncedThroughEntryId: data?.syncedThroughEntryId ?? null,
       lastClaudeModelId: data?.lastClaudeModelId ?? null,
+      reseedPending: data?.reseedPending ?? false,
+      storeBacked: data?.storeBacked ?? false,
     };
     this.sessionManager = sessionManager;
   }
@@ -385,7 +395,7 @@ export class ClaudeSession {
       debug("session:markSyncedThrough", { entryId, skipped: "no-sdk-session-id" });
       return;
     }
-    if (this.continuity.syncedThroughEntryId === entryId) {
+    if (this.continuity.syncedThroughEntryId === entryId && !this.continuity.reseedPending) {
       debug("session:markSyncedThrough", { entryId, skipped: "unchanged" });
       return;
     }
@@ -394,7 +404,29 @@ export class ClaudeSession {
     this.continuity = {
       ...this.continuity,
       syncedThroughEntryId: entryId,
+      reseedPending: false,
     };
+    this.persist();
+  }
+
+  requestReseed(message = "Pi compaction") {
+    const previous = this.continuityState();
+    this.closeLiveQuery(message);
+    this.pendingStaleReason = null;
+    this.continuity = {
+      sdkSessionId: null,
+      syncedThroughEntryId: null,
+      lastClaudeModelId: previous.lastClaudeModelId,
+      reseedPending: true,
+      storeBacked: false,
+    };
+    this.persist();
+  }
+
+  markSeededSession(sessionId: string) {
+    // Keep reseedPending set until Pi records turn_end. Identity capture only
+    // proves the seed loaded; the first prompt may still be in flight.
+    this.continuity = { ...this.continuity, sdkSessionId: sessionId, reseedPending: true, storeBacked: true };
     this.persist();
   }
 
@@ -408,12 +440,14 @@ export class ClaudeSession {
     });
     this.closeLiveQuery(message);
     this.pendingStaleReason = null;
-    if (!previous.sdkSessionId && !previous.syncedThroughEntryId && !previous.lastClaudeModelId) return;
+    if (!previous.sdkSessionId && !previous.syncedThroughEntryId && !previous.lastClaudeModelId && !previous.reseedPending) return;
 
     this.continuity = {
       sdkSessionId: null,
       syncedThroughEntryId: null,
       lastClaudeModelId: null,
+      reseedPending: false,
+      storeBacked: false,
     };
     this.persist();
     this.recordEvent("sdk_session_reset", message, {
@@ -450,8 +484,13 @@ export class ClaudeSession {
     if (this.pendingStaleReason) return { kind: "stale", reason: this.pendingStaleReason };
     if (this.liveConnection?.sdkSessionId) return { kind: "live" };
     if (this.liveConnection) return { kind: "starting" };
+    if (this.continuity.reseedPending) return { kind: "reseed" };
     if (!this.continuity.sdkSessionId) return { kind: "cold" };
-    if (!this.continuity.syncedThroughEntryId) return { kind: "stale", reason: "missing-syncedThroughEntryId" };
+    if (!this.continuity.syncedThroughEntryId) {
+      return this.continuity.storeBacked
+        ? { kind: "resumable" }
+        : { kind: "stale", reason: "missing-syncedThroughEntryId" };
+    }
     if (!this.sessionManager) return { kind: "stale", reason: "missing-handoffReader" };
 
     const branch = this.sessionManager.getBranch();
@@ -480,7 +519,9 @@ export class ClaudeSession {
       case "live":
       case "resumable":
         debug("session:prepareForTurn", { piSessionId: this.piSessionId, state: state.kind });
-        return { skipHandoff: true };
+        return { kind: "continue" };
+      case "reseed":
+        return { kind: "reseed" };
       case "starting":
         // Unreachable — closeLiveQuery clears liveConnection, so the second
         // classifyContinuity above can't return "starting".
@@ -497,7 +538,7 @@ export class ClaudeSession {
           builtHandoff: Boolean(handoff),
           handoffBytes: handoff?.length ?? 0,
         });
-        return { skipHandoff: false, handoff };
+        return { kind: "cold", handoff };
       }
     }
   }

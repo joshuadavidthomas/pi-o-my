@@ -7,10 +7,13 @@ import { SdkInputQueue } from "./queue.ts";
 
 interface QueryCall {
   prompt: AsyncIterable<SDKUserMessage> | string;
+  options?: Record<string, unknown>;
 }
 
 const queryCalls: QueryCall[] = [];
 const fakeQueries: Array<{ close: () => void }> = [];
+const fakeSessionStore = { append: mock(async () => {}), load: mock(async () => null) };
+const seededCalls: Array<{ piSessionId: string; messages: unknown[]; cwd: string }> = [];
 
 function createFakeQuery() {
   let closed = false;
@@ -44,6 +47,13 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     queryCalls.push(call);
     return createFakeQuery();
   }),
+}));
+mock.module("../native-reseed.js", () => ({
+  seedPiMessages: mock(async (piSessionId: string, messages: unknown[], cwd: string) => {
+    seededCalls.push({ piSessionId, messages, cwd });
+    return { sessionId: "seeded-sdk-session", store: fakeSessionStore };
+  }),
+  storeForPiSession: mock(() => fakeSessionStore),
 }));
 
 const { streamClaudeAgentSdk } = await import("./query.ts");
@@ -94,8 +104,8 @@ function compactedToolResultContext() {
     systemPrompt: "",
     messages: [
       {
-        role: "user",
-        content: "Compaction summary: user asked us to inspect post-compaction stalls.",
+        role: "compactionSummary",
+        summary: "User asked us to inspect post-compaction stalls.",
         timestamp: Date.now(),
       },
       {
@@ -156,6 +166,18 @@ function freshTurnContext() {
   } as never;
 }
 
+function compactedFreshTurnContext() {
+  return {
+    systemPrompt: "",
+    messages: [
+      { role: "compactionSummary", summary: "The user previously asked an old question and received an old answer.", timestamp: Date.now() },
+      { role: "assistant", content: [{ type: "text", text: "old answer" }], timestamp: Date.now() },
+      { role: "user", content: "latest fresh user prompt", timestamp: Date.now() },
+    ],
+    tools: [],
+  } as never;
+}
+
 async function waitForQueryCall(): Promise<QueryCall> {
   for (let i = 0; i < 100; i += 1) {
     const call = queryCalls[0];
@@ -181,11 +203,45 @@ afterEach(() => {
     fakeQuery.close();
   }
   queryCalls.splice(0);
+  seededCalls.splice(0);
 });
 
 describe("streamClaudeAgentSdk tool continuation", () => {
+  it("keeps compact reseed pending until Pi synchronizes the completed turn", () => {
+    const session = new ClaudeSession("pi-session");
+    session.requestReseed();
+    session.markSeededSession("seeded-sdk-session");
+    session.captureSdkSessionId("seeded-sdk-session", "claude-fable-5");
+    expect(session.continuityState().reseedPending).toBeTrue();
+
+    session.markSyncedThrough("pi-turn-entry");
+    expect(session.continuityState().reseedPending).toBeFalse();
+  });
+
+  it("resumes compact-state seeded history after Pi compaction and sends only the current prompt", async () => {
+    const session = new ClaudeSession("pi-session");
+    session.requestReseed();
+
+    streamClaudeAgentSdk(session, model, compactedFreshTurnContext(), { sessionId: "pi-session" } as never);
+
+    const call = await waitForQueryCall();
+    expect(call.options?.resume).toBe("seeded-sdk-session");
+    expect(call.options?.sessionStore).toBe(fakeSessionStore);
+    expect(call.options?.sessionId).toBeUndefined();
+    expect(seededCalls).toHaveLength(1);
+    expect(seededCalls[0]?.messages).toHaveLength(2);
+
+    const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
+    const prompt = await nextInputMessage(iterator);
+    expect(prompt.shouldQuery).toBe(true);
+    expect(prompt.message.content).toBe("latest fresh user prompt");
+
+    session.closeLiveQuery("test teardown");
+  });
+
   it("starts a fresh continuation when compacted context trails tool results without an active turn", async () => {
     const session = new ClaudeSession("pi-session");
+    session.requestReseed();
 
     streamClaudeAgentSdk(session, model, compactedToolResultContext(), {
       sessionId: "pi-session",
@@ -195,11 +251,9 @@ describe("streamClaudeAgentSdk tool continuation", () => {
     expect(typeof call.prompt).not.toBe("string");
     const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
 
-    const handoff = await nextInputMessage(iterator);
-    expect(handoff.shouldQuery).toBe(false);
-    expect(handoff.message.content).toContain("<pi_handoff>");
-    expect(handoff.message.content).toContain("Compaction summary: user asked us to inspect post-compaction stalls.");
-    expect(handoff.message.content).toContain("TOOL RESULT FROM COMPACTION");
+    expect(call.options?.resume).toBe("seeded-sdk-session");
+    expect(call.options?.sessionStore).toBe(fakeSessionStore);
+    expect(seededCalls[0]?.messages).toHaveLength(3);
 
     const prompt = await nextInputMessage(iterator);
     expect(prompt.shouldQuery).toBe(true);
@@ -220,12 +274,13 @@ describe("streamClaudeAgentSdk tool continuation", () => {
     expect(typeof call.prompt).not.toBe("string");
     const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
 
+    expect(call.options?.resume).toBeUndefined();
+    expect(call.options?.sessionStore).toBeUndefined();
+    expect(seededCalls).toHaveLength(0);
+
     const handoff = await nextInputMessage(iterator);
     expect(handoff.shouldQuery).toBe(false);
-    expect(handoff.message.content).toContain("<pi_handoff>");
-    expect(handoff.message.content).not.toContain("Compaction summary:");
     expect(handoff.message.content).toContain("STALE LOOKING TOOL RESULT");
-
     const prompt = await nextInputMessage(iterator);
     expect(prompt.shouldQuery).toBe(true);
     expect(prompt.message.content).toContain("Continue the interrupted work");
