@@ -6,16 +6,22 @@ export interface PromptTextBlock {
   text: string;
 }
 
+export type PromptImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
 export interface PromptImageBlock {
   type: "image";
   source: {
     type: "base64";
-    media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    media_type: PromptImageMediaType;
     data: string;
   };
 }
 
 export type PromptBlock = PromptTextBlock | PromptImageBlock;
+
+export function isSupportedImageMediaType(value: string): value is PromptImageMediaType {
+  return ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(value);
+}
 
 export function extractLatestUserPrompt(context: Context): string | PromptBlock[] {
   for (let i = context.messages.length - 1; i >= 0; i--) {
@@ -32,8 +38,8 @@ export function extractLatestUserPrompt(context: Context): string | PromptBlock[
       }
 
       if (item.type === "image") {
-        const mediaType = item.mimeType as PromptImageBlock["source"]["media_type"];
-        if (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)) {
+        const mediaType = item.mimeType;
+        if (isSupportedImageMediaType(mediaType)) {
           return [
             {
               type: "image",
@@ -88,8 +94,8 @@ export function piContentToSdkPromptContent(content: unknown): string | PromptBl
     }
 
     if (block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string") {
-      const mediaType = block.mimeType as PromptImageBlock["source"]["media_type"];
-      if (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)) {
+      const mediaType = block.mimeType;
+      if (isSupportedImageMediaType(mediaType)) {
         return [{ type: "image", source: { type: "base64", media_type: mediaType, data: block.data } }];
       }
     }

@@ -1,6 +1,6 @@
 import { getModels } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { registerCompaction } from "./compaction.js";
+import { registerSummarization } from "./compaction.js";
 import { debug } from "./sdk/debug.js";
 import { ClaudeSessionManager } from "./session.js";
 import { streamClaudeAgentSdk, streamClaudeAgentSdkOneShot } from "./sdk/query.js";
@@ -8,34 +8,47 @@ import { streamClaudeAgentSdk, streamClaudeAgentSdkOneShot } from "./sdk/query.j
 export const PROVIDER_ID = "claude-agent-sdk";
 export const API_ID = "claude-agent-sdk";
 
-const PROVIDER_MODELS: ProviderModelConfig[] = getModels("anthropic")
-  .filter((model) => model.id.startsWith("claude-"))
-  .map((model) => ({
-    id: model.id,
-    name: model.name,
+export const PROVIDER_MODELS: ProviderModelConfig[] = [
+  ...getModels("anthropic")
+    .filter((model) => model.id.startsWith("claude-"))
+    .map((model) => ({
+      id: model.id,
+      name: model.name,
+      api: API_ID,
+      reasoning: model.reasoning,
+      input: [...model.input],
+      cost: { ...model.cost },
+      contextWindow: model.contextWindow,
+      maxTokens: model.maxTokens,
+    })),
+  {
+    id: "claude-opus-5",
+    name: "Claude Opus 5",
     api: API_ID,
-    reasoning: model.reasoning,
-    input: [...model.input],
-    cost: { ...model.cost },
-    contextWindow: model.contextWindow,
-    maxTokens: model.maxTokens,
-  }));
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    contextWindow: 1_000_000,
+    maxTokens: 128_000,
+  },
+];
 
 export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
   const claudeSessions = ClaudeSessionManager.claim(pi);
 
-  registerCompaction(pi, PROVIDER_ID);
+  registerSummarization(pi, PROVIDER_ID);
 
   pi.on("session_start", (event, ctx) => {
+    const structuralBoundary = event.reason === "new" || event.reason === "fork";
     debug("event:session_start", {
       reason: event.reason,
       piSessionId: ctx.sessionManager.getSessionId(),
       provider: ctx.model?.provider,
-      willResetContinuity: (event.reason === "new" || event.reason === "fork") && ctx.model?.provider === PROVIDER_ID,
+      willResetContinuity: structuralBoundary,
     });
     const session = claudeSessions.hydrateSession(ctx.sessionManager, `session_start:${event.reason}`);
 
-    if ((event.reason === "new" || event.reason === "fork") && ctx.model?.provider === PROVIDER_ID) {
+    if (structuralBoundary) {
       session.resetContinuity(`session_start: reason=${event.reason}`);
     }
   });
@@ -53,24 +66,26 @@ export default function claudeAgentSdkProvider(pi: ExtensionAPI) {
 
   pi.on("session_tree", (_event, ctx) => {
     debug("event:session_tree", { piSessionId: ctx.sessionManager.getSessionId(), provider: ctx.model?.provider });
-    if (ctx.model?.provider !== PROVIDER_ID) return;
 
-    // /tree changes Pi's active branch inside the same Pi session file. Do not
-    // blindly persist a null SDK session: the selected branch may already have
-    // valid continuity entries. Close the old live SDK query and rehydrate from
-    // the new branch, letting the next turn resume branch-local continuity or
-    // cold-start with a Pi handoff if none exists.
-    claudeSessions.hydrateSession(ctx.sessionManager, "session_tree");
+    // Claude session IDs name mutable transcript heads, not branch checkpoints.
+    // An older Pi branch can contain the same ID after another branch has
+    // advanced it, so resuming that ID would expose abandoned-branch context.
+    // Preseed a fresh Claude compacted session from the selected Pi branch.
+    const session = claudeSessions.hydrateSession(ctx.sessionManager, "session_tree");
+    session.requestReseed("Pi tree navigation");
   });
 
-  pi.on("turn_end", (_event, ctx) => {
+  pi.on("turn_end", (event, ctx) => {
     const leafId = ctx.sessionManager.getLeafId();
+    const stopReason = event.message.role === "assistant" ? event.message.stopReason : undefined;
     debug("event:turn_end", {
       piSessionId: ctx.sessionManager.getSessionId(),
       provider: ctx.model?.provider,
+      stopReason,
       leafId,
     });
     if (ctx.model?.provider !== PROVIDER_ID) return;
+    if (stopReason === "error" || stopReason === "aborted") return;
     if (!leafId) return;
 
     claudeSessions.markSessionSynced(ctx.sessionManager, leafId);

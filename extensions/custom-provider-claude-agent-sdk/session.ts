@@ -9,9 +9,10 @@ import { ToolBridge } from "./tools/bridge.js";
 const SESSION_ENTRY_TYPE = "claude-agent-sdk-session";
 const EVENT_ENTRY_TYPE = "claude-agent-sdk-event";
 
-export type SessionManager = Pick<PiSessionManager, "getBranch" | "getEntries" | "getSessionId" | "getLeafId" | "getSessionFile">;
+export type SessionManager = Pick<PiSessionManager, "getBranch" | "getEntries" | "getHeader" | "getSessionId" | "getLeafId" | "getSessionFile">;
 
 export interface SessionContinuity {
+  ownerPiSessionId: string | null;
   sdkSessionId: string | null;
   syncedThroughEntryId: string | null;
   lastClaudeModelId: string | null;
@@ -41,42 +42,94 @@ interface SessionEventEntry {
 type PersistSessionEntry = (data: SessionContinuity) => void;
 type PersistEventEntry = (data: SessionEventEntry) => void;
 
-function loadContinuity(sessionManager: SessionManager): SessionContinuity {
-  let data: SessionContinuity = {
+function emptyContinuity(): SessionContinuity {
+  return {
+    ownerPiSessionId: null,
     sdkSessionId: null,
     syncedThroughEntryId: null,
     lastClaudeModelId: null,
     reseedPending: false,
     storeBacked: false,
   };
+}
 
+function parseContinuity(value: unknown): SessionContinuity {
+  if (!value || typeof value !== "object") return emptyContinuity();
+  const record = value as Record<string, unknown>;
+  return {
+    ownerPiSessionId: typeof record.ownerPiSessionId === "string" ? record.ownerPiSessionId : null,
+    sdkSessionId: typeof record.sdkSessionId === "string" ? record.sdkSessionId : null,
+    syncedThroughEntryId: typeof record.syncedThroughEntryId === "string" ? record.syncedThroughEntryId : null,
+    lastClaudeModelId: typeof record.lastClaudeModelId === "string" ? record.lastClaudeModelId : null,
+    reseedPending: record.reseedPending === true,
+    storeBacked: record.storeBacked === true,
+  };
+}
+
+function loadContinuity(sessionManager: SessionManager): SessionContinuity {
+  let data = emptyContinuity();
   const branch = sessionManager.getBranch();
+  const branchIds = new Set(branch.map((entry) => entry.id));
+  const taintedSdkSessionIds = new Set<string>();
+
+  // A Claude session ID is mutable. If the same ID advanced on an entry outside
+  // the selected Pi branch, it cannot represent the selected branch's hidden
+  // transcript head, even when its old synced entry remains an ancestor.
+  for (const entry of sessionManager.getEntries()) {
+    if (branchIds.has(entry.id) || entry.type !== "custom") continue;
+    if (entry.customType === SESSION_ENTRY_TYPE) {
+      const sdkSessionId = parseContinuity(entry.data).sdkSessionId;
+      if (sdkSessionId) taintedSdkSessionIds.add(sdkSessionId);
+      continue;
+    }
+    if (entry.customType === EVENT_ENTRY_TYPE) {
+      const event = entry.data as Partial<SessionEventEntry> | undefined;
+      if (typeof event?.sdkSessionId === "string") taintedSdkSessionIds.add(event.sdkSessionId);
+    }
+  }
+
+  const currentPiSessionId = sessionManager.getSessionId();
+  const legacyCopiedSession = Boolean(sessionManager.getHeader()?.parentSession);
+
   let entriesScanned = 0;
   let matchesFound = 0;
   for (const entry of branch) {
     entriesScanned += 1;
-    if (entry.type !== "custom" || entry.customType !== SESSION_ENTRY_TYPE) continue;
-    matchesFound += 1;
+    if (entry.type !== "custom") continue;
 
-    const value = entry.data;
-    if (!value || typeof value !== "object") {
-      data = { sdkSessionId: null, syncedThroughEntryId: null, lastClaudeModelId: null, reseedPending: false, storeBacked: false };
+    if (entry.customType === EVENT_ENTRY_TYPE) {
+      const event = entry.data as Partial<SessionEventEntry> | undefined;
+      const structuralBoundary = event?.event === "sdk_session_rehydrated"
+        && (event.reason === "session_tree" || event.reason === "session_start:fork" || event.reason === "session_start:new");
+      if (structuralBoundary) {
+        // Older extension versions recorded the structural transition without
+        // clearing continuity. Keep its mutable SDK ID invalid even if a later
+        // legacy turn persisted that same contaminated ID again.
+        const sdkSessionId = typeof event.sdkSessionId === "string" ? event.sdkSessionId : data.sdkSessionId;
+        if (sdkSessionId) taintedSdkSessionIds.add(sdkSessionId);
+        data = emptyContinuity();
+      }
       continue;
     }
-    const record = value as Record<string, unknown>;
-    data = {
-      sdkSessionId: typeof record.sdkSessionId === "string" ? record.sdkSessionId : null,
-      syncedThroughEntryId: typeof record.syncedThroughEntryId === "string" ? record.syncedThroughEntryId : null,
-      lastClaudeModelId: typeof record.lastClaudeModelId === "string" ? record.lastClaudeModelId : null,
-      reseedPending: record.reseedPending === true,
-      storeBacked: record.storeBacked === true,
-    };
+
+    if (entry.customType !== SESSION_ENTRY_TYPE) continue;
+    matchesFound += 1;
+
+    const candidate = parseContinuity(entry.data);
+    const wrongOwner = candidate.ownerPiSessionId !== null && candidate.ownerPiSessionId !== currentPiSessionId;
+    const unownedCopy = candidate.ownerPiSessionId === null && legacyCopiedSession;
+    data = candidate.sdkSessionId && (taintedSdkSessionIds.has(candidate.sdkSessionId) || wrongOwner || unownedCopy)
+      ? emptyContinuity()
+      : candidate;
   }
 
   debug("continuity:load", {
     branchLength: branch.length,
     entriesScanned,
     matchesFound,
+    taintedSdkSessionIds: taintedSdkSessionIds.size,
+    legacyCopiedSession,
+    ownerPiSessionId: data.ownerPiSessionId,
     sdkSessionId: data.sdkSessionId,
     syncedThroughEntryId: data.syncedThroughEntryId,
     lastClaudeModelId: data.lastClaudeModelId,
@@ -277,6 +330,7 @@ export class ClaudeSession {
   ) {
     this.piSessionId = piSessionId;
     this.continuity = {
+      ownerPiSessionId: this.piSessionId,
       sdkSessionId: data?.sdkSessionId ?? null,
       syncedThroughEntryId: data?.syncedThroughEntryId ?? null,
       lastClaudeModelId: data?.lastClaudeModelId ?? null,
@@ -414,6 +468,7 @@ export class ClaudeSession {
     this.closeLiveQuery(message);
     this.pendingStaleReason = null;
     this.continuity = {
+      ownerPiSessionId: this.piSessionId,
       sdkSessionId: null,
       syncedThroughEntryId: null,
       lastClaudeModelId: previous.lastClaudeModelId,
@@ -443,6 +498,7 @@ export class ClaudeSession {
     if (!previous.sdkSessionId && !previous.syncedThroughEntryId && !previous.lastClaudeModelId && !previous.reseedPending) return;
 
     this.continuity = {
+      ownerPiSessionId: this.piSessionId,
       sdkSessionId: null,
       syncedThroughEntryId: null,
       lastClaudeModelId: null,

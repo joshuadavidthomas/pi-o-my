@@ -239,6 +239,29 @@ describe("streamClaudeAgentSdk tool continuation", () => {
     session.closeLiveQuery("test teardown");
   });
 
+  it("preseeds an ordinary selected branch and sends only the current prompt", async () => {
+    const session = new ClaudeSession("pi-session");
+    session.requestReseed("Pi tree navigation");
+
+    streamClaudeAgentSdk(session, model, freshTurnContext(), { sessionId: "pi-session" } as never);
+
+    const call = await waitForQueryCall();
+    expect(call.options?.resume).toBe("seeded-sdk-session");
+    expect(call.options?.sessionStore).toBe(fakeSessionStore);
+    expect(seededCalls).toHaveLength(1);
+    expect(seededCalls[0]?.messages).toEqual([
+      expect.objectContaining({ role: "user", content: "old prompt" }),
+      expect.objectContaining({ role: "assistant", content: "old answer" }),
+    ]);
+
+    const iterator = (call.prompt as AsyncIterable<SDKUserMessage>)[Symbol.asyncIterator]();
+    const prompt = await nextInputMessage(iterator);
+    expect(prompt.shouldQuery).toBe(true);
+    expect(prompt.message.content).toBe("latest fresh user prompt");
+
+    session.closeLiveQuery("test teardown");
+  });
+
   it("starts a fresh continuation when compacted context trails tool results without an active turn", async () => {
     const session = new ClaudeSession("pi-session");
     session.requestReseed();

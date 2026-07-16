@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodePiMessages } from "../native-reseed.js";
@@ -247,6 +247,70 @@ integration("native SessionStore transcript resume", () => {
       "Reply with only the codename from the retained completed lookup. Do not call tools.",
     );
     expect(result.text).toContain("COMPACT-CEDAR-583");
+    expect(result.toolUses).toBe(0);
+  }, 120_000);
+
+  it("accepts production compact-state encoding with a retained image", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-claude-image-compact-cwd-"));
+    temporaryDirectories.push(cwd);
+    const configDirectory = await createConfigDirectory();
+    const store = new InMemorySessionStore();
+    const sessionId = crypto.randomUUID();
+    const imageData = (await readFile(new URL("../../../assets/pi-o-my.png", import.meta.url))).toString("base64");
+    const entries = encodePiMessages([
+      { role: "compactionSummary", summary: "The image resume probe codename is IMAGE-CEDAR-214." },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_image_probe",
+        toolName: "read",
+        content: [{
+          type: "image",
+          mimeType: "image/png",
+          data: imageData,
+        }],
+        isError: false,
+      },
+    ], sessionId, cwd);
+
+    await store.append({ projectKey: projectKeyFor(cwd), sessionId }, entries);
+    const result = await runResume(
+      sessionId,
+      store,
+      cwd,
+      configDirectory,
+      "Reply with only the image resume probe codename from the compacted history.",
+    );
+
+    expect(result.text).toContain("IMAGE-CEDAR-214");
+  }, 120_000);
+
+  it("accepts selected-branch compact-state encoding with completed tool history", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-claude-tree-state-cwd-"));
+    temporaryDirectories.push(cwd);
+    const configDirectory = await createConfigDirectory();
+    const store = new InMemorySessionStore();
+    const sessionId = crypto.randomUUID();
+    const entries = encodePiMessages([
+      { role: "user", content: "Use the completed lookup to remember the selected branch codename." },
+      { role: "assistant", content: [
+        { type: "text", text: "I will use the completed lookup from this branch." },
+        { type: "toolCall", id: "toolu_tree_compact", name: "lookup", arguments: { key: "codename" } },
+      ] },
+      { role: "toolResult", toolCallId: "toolu_tree_compact", toolName: "lookup", content: [
+        { type: "text", text: "Historical result: TREE-MAPLE-816" },
+      ] },
+      { role: "assistant", content: [{ type: "text", text: "The completed lookup returned TREE-MAPLE-816." }] },
+    ], sessionId, cwd);
+    await store.append({ projectKey: projectKeyFor(cwd), sessionId }, entries);
+
+    const result = await runResume(
+      sessionId,
+      store,
+      cwd,
+      configDirectory,
+      "Reply with only the codename from the selected branch. Do not call tools.",
+    );
+    expect(result.text).toContain("TREE-MAPLE-816");
     expect(result.toolUses).toBe(0);
   }, 120_000);
 

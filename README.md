@@ -64,15 +64,17 @@ When the assistant asks multiple questions, `/answer` (or `Ctrl+.`) extracts the
 
 #### [custom-provider-claude-agent-sdk](./extensions/custom-provider-claude-agent-sdk/)
 
-Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider and mirrors pi's built-in Anthropic Claude model list, so model IDs look like `claude-agent-sdk/claude-sonnet-5`.
+Claude Agent SDK provider for pi using Anthropic's stable `query()` API. It registers the `claude-agent-sdk` provider, mirrors pi's built-in Anthropic Claude model list, and adds Claude Opus 5. Model IDs look like `claude-agent-sdk/claude-opus-5`.
 
 The provider runs one live streaming SDK query per active pi session/branch. Claude sees pi tools through an in-process MCP server, but pi still executes the tools, renders them, records tool calls/results, and applies its normal permission and extension hooks. Built-in Claude Code tools are disabled so tool execution stays pi-native.
 
-Session continuity is persisted in pi custom session entries and restored on resume. After `/compact`, pi remains the compaction owner and the provider seeds Pi's summary and retained recent messages inside Claude's native compacted-session envelope. This avoids presenting prior assistant/tool output as an ordinary new user request, which Fable rejects. These private transcripts live under the configured pi agent directory at `state/claude-agent-sdk/sessions/`; they are not removed automatically because old pi branches may still reference them.
+Session continuity is persisted in pi custom session entries and restored on resume. After `/compact`, pi remains the compaction owner and the provider seeds Pi's summary and retained recent messages inside Claude's native compacted-session envelope. Tree navigation uses the same envelope to preseed a fresh Claude session from the selected Pi branch. Only the next user prompt is submitted as a live request. Optional tree summaries run on an authenticated non-Claude model so the Claude subscription request never receives a transcript-summarization prompt.
+
+This avoids presenting prior assistant/tool output as an ordinary new user request, which Fable rejects. Private preseeded transcripts live under the configured pi agent directory at `state/claude-agent-sdk/sessions/`. They are not removed automatically because old pi branches may still reference them.
 
 The transcript encoder targets the pinned Claude Agent SDK/CLI format. Run `PI_CLAUDE_AGENT_SDK_RUN_INTEGRATION=1 bun test ./extensions/custom-provider-claude-agent-sdk/sdk/session-store.integration.test.ts` before upgrading that dependency. Ordinary tests skip this authenticated gate.
 
-Structural boundaries such as `/new`, forks, and branch/tree switches close/reset the live SDK query as needed; model switching away and back closes the process without resetting SDK continuity for the same pi session. Print mode closes the live query after each final turn so CLI invocations exit.
+Structural boundaries such as `/new`, forks, and branch/tree switches close or rebuild the live SDK query as needed. Model switching away and back closes the process without resetting SDK continuity for the same pi session. Print mode closes the live query after each final turn so CLI invocations exit.
 
 #### [dcg](./extensions/dcg.ts)
 

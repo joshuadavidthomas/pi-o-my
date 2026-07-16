@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { SessionStore, SessionStoreEntry } from "@anthropic-ai/claude-agent-sdk";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { isSupportedImageMediaType, type PromptImageMediaType } from "./sdk/prompt.js";
 
 const CLI_VERSION = "2.1.141";
 const COMPACTION_SUMMARY_PREFIX = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n";
@@ -89,34 +90,75 @@ function envelope(sessionId: string, cwd: string, parentUuid: string | null, uui
   };
 }
 
-function contentText(content: unknown, location: string): string {
-  if (typeof content === "string") return content;
+type CompactContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: PromptImageMediaType; data: string } };
+
+function contentBlocks(content: unknown, location: string): CompactContentBlock[] {
+  if (typeof content === "string") return [{ type: "text", text: content }];
   if (!Array.isArray(content)) throw new Error(`Unsupported ${location} content`);
-  const parts: string[] = [];
+  const parts: CompactContentBlock[] = [];
   for (const raw of content) {
     if (!raw || typeof raw !== "object") throw new Error(`Unsupported ${location} block`);
     const block = raw as Record<string, unknown>;
     if (block.type === "text" && typeof block.text === "string") {
-      parts.push(block.text);
+      const previous = parts.at(-1);
+      if (previous?.type === "text") previous.text += `\n${block.text}`;
+      else parts.push({ type: "text", text: block.text });
+      continue;
+    }
+    if (block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string") {
+      if (!isSupportedImageMediaType(block.mimeType)) {
+        throw new Error(`Unsupported ${location} image MIME type: ${block.mimeType}`);
+      }
+      parts.push({
+        type: "image",
+        source: { type: "base64", media_type: block.mimeType, data: block.data },
+      });
       continue;
     }
     throw new Error(`Unsupported ${location} block: ${String(block.type)}`);
   }
-  return parts.join("\n");
+  return parts;
 }
 
-function formatRetainedMessage(message: Record<string, unknown>, index: number): string | undefined {
-  if (message.role === "user") return `User:\n${contentText(message.content, `user message ${index}`)}`;
+function prefixContent(prefix: string, blocks: CompactContentBlock[]): CompactContentBlock[] {
+  const [first, ...rest] = blocks;
+  if (first?.type === "text") return [{ type: "text", text: `${prefix}\n${first.text}` }, ...rest];
+  return [{ type: "text", text: prefix }, ...blocks];
+}
+
+function formatRetainedMessage(message: Record<string, unknown>, index: number): CompactContentBlock[] | undefined {
+  if (message.role === "user") {
+    return prefixContent("User:", contentBlocks(message.content, `user message ${index}`));
+  }
   if (message.role === "branchSummary" && typeof message.summary === "string") {
-    return `Branch summary:\n${message.summary}`;
+    return [{ type: "text", text: `Branch summary:\n${message.summary}` }];
   }
   if (message.role === "toolResult") {
     if (typeof message.toolCallId !== "string") throw new Error(`Tool result at ${index} is missing toolCallId`);
     const label = message.isError ? "Tool error" : "Tool result";
-    return `${label} (${message.toolCallId}):\n${contentText(message.content, `tool result ${index}`)}`;
+    return prefixContent(
+      `${label} (${message.toolCallId}):`,
+      contentBlocks(message.content, `tool result ${index}`),
+    );
+  }
+  if (message.role === "bashExecution") {
+    if (message.excludeFromContext === true) return undefined;
+    const command = typeof message.command === "string" ? message.command : "";
+    const output = typeof message.output === "string" ? message.output : "";
+    return [{ type: "text", text: `User shell command:\n${command}\n\nShell output:\n${output || "(no output)"}` }];
+  }
+  if (message.role === "custom") {
+    return prefixContent("Context:", contentBlocks(message.content, `custom message ${index}`));
   }
   if (message.role !== "assistant") throw new Error(`Unsupported Pi transcript role: ${String(message.role)}`);
   if (!Array.isArray(message.content)) throw new Error(`Unsupported assistant content at ${index}`);
+  // Pi excludes failed assistant messages when it builds provider context. Do
+  // the same for the materialized Claude transcript: aborted turns are often
+  // empty, while API failures may contain diagnostic text such as "Prompt is
+  // too long" that is not part of the conversation to continue.
+  if (message.stopReason === "error" || message.stopReason === "aborted") return undefined;
 
   const parts: string[] = [];
   for (const raw of message.content) {
@@ -134,7 +176,13 @@ function formatRetainedMessage(message: Record<string, unknown>, index: number):
     throw new Error(`Unsupported assistant block: ${String(block.type)}`);
   }
   if (parts.length === 0) throw new Error(`Assistant message ${index} has no compactable content`);
-  return parts.join("\n\n");
+  return [{ type: "text", text: parts.join("\n\n") }];
+}
+
+function contentText(content: unknown, location: string): string {
+  const blocks = contentBlocks(content, location);
+  if (blocks.some((block) => block.type !== "text")) throw new Error(`Unsupported ${location} block: image`);
+  return blocks.map((block) => block.type === "text" ? block.text : "").join("\n");
 }
 
 function compactionSummaryText(raw: unknown): string | undefined {
@@ -153,20 +201,48 @@ function compactionSummaryText(raw: unknown): string | undefined {
 
 export function encodePiMessages(messages: unknown[], sessionId: string, cwd: string): SessionStoreEntry[] {
   const summaryIndex = messages.findIndex((raw) => compactionSummaryText(raw) !== undefined);
-  if (summaryIndex < 0) throw new Error("Native compact reseed requires a Pi compaction summary");
-  const summaryText = compactionSummaryText(messages[summaryIndex]);
-  if (summaryText === undefined) throw new Error("Pi compaction summary is missing summary text");
+  const hasPiSummary = summaryIndex >= 0;
+  const summaryText = hasPiSummary ? compactionSummaryText(messages[summaryIndex]) : undefined;
+  if (hasPiSummary && summaryText === undefined) throw new Error("Pi compaction summary is missing summary text");
 
-  const retained = messages.slice(summaryIndex + 1).map((raw, offset) => {
-    if (!raw || typeof raw !== "object") throw new Error(`Unsupported Pi transcript message at ${summaryIndex + offset + 1}`);
-    return formatRetainedMessage(raw as Record<string, unknown>, summaryIndex + offset + 1);
-  }).filter(Boolean);
-  const compactContent = [
-    "This session is being continued from a previous conversation that ran out of context.",
-    `Summary:\n${summaryText}`,
-    retained.length > 0 ? `Retained recent messages:\n${retained.join("\n\n")}` : undefined,
-    "Continue the conversation from this compacted state.",
-  ].filter(Boolean).join("\n\n");
+  const messagesToEncode = hasPiSummary ? messages.slice(summaryIndex + 1) : messages;
+  const encodedMessages = messagesToEncode.map((raw, offset) => {
+    const originalIndex = hasPiSummary ? summaryIndex + offset + 1 : offset;
+    if (!raw || typeof raw !== "object") throw new Error(`Unsupported Pi transcript message at ${originalIndex}`);
+    return formatRetainedMessage(raw as Record<string, unknown>, originalIndex);
+  }).filter((blocks): blocks is CompactContentBlock[] => blocks !== undefined);
+
+  const compactBlocks: CompactContentBlock[] = [];
+  const appendText = (text: string) => {
+    const previous = compactBlocks.at(-1);
+    if (previous?.type === "text") {
+      previous.text += text;
+    } else {
+      compactBlocks.push({ type: "text", text });
+    }
+  };
+  if (hasPiSummary) {
+    appendText("This session is being continued from a previous conversation that ran out of context.");
+    appendText(`\n\nSummary:\n${summaryText}`);
+  } else {
+    appendText("This session is being continued from a selected Pi conversation branch.");
+  }
+  if (encodedMessages.length > 0) {
+    appendText(hasPiSummary ? "\n\nRetained recent messages:" : "\n\nSelected branch messages:");
+    for (const [index, blocks] of encodedMessages.entries()) {
+      appendText(index === 0 ? "\n" : "\n\n");
+      for (const block of blocks) {
+        if (block.type === "text") appendText(block.text);
+        else compactBlocks.push(block);
+      }
+    }
+  }
+  appendText(hasPiSummary
+    ? "\n\nContinue the conversation from this compacted state."
+    : "\n\nContinue the conversation from this selected branch.");
+  const compactContent = compactBlocks.some((block) => block.type === "image")
+    ? compactBlocks
+    : compactBlocks.map((block) => block.type === "text" ? block.text : "").join("");
 
   const logicalParentUuid = crypto.randomUUID();
   const boundaryUuid = crypto.randomUUID();
