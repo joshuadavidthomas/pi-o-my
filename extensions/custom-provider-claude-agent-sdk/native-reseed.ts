@@ -4,6 +4,8 @@ import type { SessionStore, SessionStoreEntry } from "@anthropic-ai/claude-agent
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const CLI_VERSION = "2.1.141";
+const COMPACTION_SUMMARY_PREFIX = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n";
+const COMPACTION_SUMMARY_SUFFIX = "\n</summary>";
 const stores = new Map<string, DurableSessionStore>();
 
 const projectKeyFor = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g, "-");
@@ -135,12 +137,25 @@ function formatRetainedMessage(message: Record<string, unknown>, index: number):
   return parts.join("\n\n");
 }
 
+function compactionSummaryText(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const message = raw as Record<string, unknown>;
+  if (message.role === "compactionSummary" && typeof message.summary === "string") return message.summary;
+  if (message.role !== "user") return undefined;
+  try {
+    const text = contentText(message.content, "compaction summary");
+    if (!text.startsWith(COMPACTION_SUMMARY_PREFIX) || !text.endsWith(COMPACTION_SUMMARY_SUFFIX)) return undefined;
+    return text.slice(COMPACTION_SUMMARY_PREFIX.length, -COMPACTION_SUMMARY_SUFFIX.length);
+  } catch {
+    return undefined;
+  }
+}
+
 export function encodePiMessages(messages: unknown[], sessionId: string, cwd: string): SessionStoreEntry[] {
-  const summaryIndex = messages.findIndex((raw) => raw && typeof raw === "object"
-    && (raw as Record<string, unknown>).role === "compactionSummary");
+  const summaryIndex = messages.findIndex((raw) => compactionSummaryText(raw) !== undefined);
   if (summaryIndex < 0) throw new Error("Native compact reseed requires a Pi compaction summary");
-  const summaryMessage = messages[summaryIndex] as Record<string, unknown>;
-  if (typeof summaryMessage.summary !== "string") throw new Error("Pi compaction summary is missing summary text");
+  const summaryText = compactionSummaryText(messages[summaryIndex]);
+  if (summaryText === undefined) throw new Error("Pi compaction summary is missing summary text");
 
   const retained = messages.slice(summaryIndex + 1).map((raw, offset) => {
     if (!raw || typeof raw !== "object") throw new Error(`Unsupported Pi transcript message at ${summaryIndex + offset + 1}`);
@@ -148,7 +163,7 @@ export function encodePiMessages(messages: unknown[], sessionId: string, cwd: st
   }).filter(Boolean);
   const compactContent = [
     "This session is being continued from a previous conversation that ran out of context.",
-    `Summary:\n${summaryMessage.summary}`,
+    `Summary:\n${summaryText}`,
     retained.length > 0 ? `Retained recent messages:\n${retained.join("\n\n")}` : undefined,
     "Continue the conversation from this compacted state.",
   ].filter(Boolean).join("\n\n");

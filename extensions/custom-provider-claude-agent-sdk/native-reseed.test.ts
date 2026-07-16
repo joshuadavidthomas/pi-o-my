@@ -60,6 +60,22 @@ describe("encodePiMessages", () => {
     expect((entries[1] as { isCompactSummary?: boolean }).isCompactSummary).toBeTrue();
   });
 
+  it("recognizes Pi's provider-facing compaction summary user message", () => {
+    const entries = encodePiMessages([
+      {
+        role: "user",
+        content: [{
+          type: "text",
+          text: "The conversation history before this point was compacted into the following summary:\n\n<summary>\nProvider-facing summary.\n</summary>",
+        }],
+      },
+      { role: "assistant", content: [{ type: "text", text: "retained answer" }] },
+    ], crypto.randomUUID(), "/tmp/project");
+
+    expect(JSON.stringify(entries)).toContain("Provider-facing summary.");
+    expect(JSON.stringify(entries)).toContain("retained answer");
+  });
+
   it("requires an explicit Pi compaction summary", () => {
     expect(() => encodePiMessages([
       { role: "user", content: "ordinary cold history" },

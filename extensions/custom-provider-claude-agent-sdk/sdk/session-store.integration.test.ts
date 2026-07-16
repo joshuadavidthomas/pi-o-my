@@ -257,7 +257,13 @@ integration("native SessionStore transcript resume", () => {
     const store = new InMemorySessionStore();
     const sessionId = crypto.randomUUID();
     const entries = encodePiMessages([
-      { role: "compactionSummary", summary: "The project continuity probe is active." },
+      {
+        role: "user",
+        content: [{
+          type: "text",
+          text: "The conversation history before this point was compacted into the following summary:\n\n<summary>\nThe project continuity probe is active.\n</summary>",
+        }],
+      },
       { role: "user", content: "Use the completed lookup to remember the codename." },
       { role: "assistant", content: [
         { type: "text", text: "I will use the completed historical lookup." },
