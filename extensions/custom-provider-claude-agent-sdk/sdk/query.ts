@@ -381,13 +381,16 @@ async function runSessionQuery(
       ? plan.handoff ?? buildContextMessagesHandoff(context.messages)
       : undefined);
     const prompt = input?.prompt ?? extractLatestUserPrompt(context);
-    if (plan.kind === "reseed") {
+    if (plan.kind === "reseed" && session.continuityState().sdkSessionId) {
       // An unsynchronized seed may already contain the current prompt in its
       // mirrored SDK transcript. Never resume it after a restart and submit
       // that Pi prompt twice; create a new seed attempt instead.
-      if (session.continuityState().sdkSessionId) {
-        session.requestReseed("Retrying unsynchronized compact reseed");
-      }
+      session.requestReseed("Retrying unsynchronized compact reseed");
+    }
+    // Attach the Pi stream before encoding or storing the seed so conversion
+    // failures terminate the visible turn instead of leaving its spinner open.
+    turn = session.beginTurn(new PiStreamState(model, stream));
+    if (plan.kind === "reseed") {
       let seedMessages = context.messages;
       if (!input?.prompt) {
         let currentPromptIndex = -1;
@@ -400,7 +403,6 @@ async function runSessionQuery(
       const seeded = await seedPiMessages(session.piSessionId, seedMessages, process.cwd());
       session.markSeededSession(seeded.sessionId);
     }
-    turn = session.beginTurn(new PiStreamState(model, stream));
     const activeTurn = turn;
     const mcpServer = buildPiMcpServer(context.tools, (toolName) => {
       const currentTurn = session.currentTurn();
@@ -487,12 +489,23 @@ async function runSessionQuery(
     }
   } catch (error) {
     debug("runSessionQuery:error", { message: errorMessage(error), signalAborted: Boolean(options?.signal?.aborted) });
+    const message = errorMessage(error);
+    const aborted = Boolean(options?.signal?.aborted);
     const currentState = turn?.streamState();
-    currentState?.fail(errorMessage(error), Boolean(options?.signal?.aborted));
-    if (currentState) {
-      turn?.detachStreamState(currentState);
+    if (currentState && turn) {
+      currentState.fail(message, aborted);
+      turn.detachStreamState(currentState);
+      session.closeLiveQuery(message);
+    } else {
+      // A seed/build failure can happen before the caller has begun consuming
+      // the returned event stream. Defer the terminal event so it is not lost,
+      // which would leave Pi's working indicator spinning forever.
+      queueMicrotask(() => {
+        const failedState = new PiStreamState(model, stream);
+        failedState.fail(message, aborted);
+        session.closeLiveQuery(message);
+      });
     }
-    session.closeLiveQuery(errorMessage(error));
   } finally {
     if (turn && closeAfterTurn) {
       session.finishActiveTurn(turn);
