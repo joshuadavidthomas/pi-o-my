@@ -880,13 +880,13 @@ export default function (pi: ExtensionAPI) {
           : "success";
         const state = theme.fg(color, allowState);
         const label = theme.bold(`${dcgPrefix} ${state}`);
+        const autoReason = allowDetails?.dcgAutoReason;
+        const statusLine = autoReason
+          ? `${label} ${theme.fg("muted", autoReason)}`
+          : label;
         const output = getBashOutputText(result.content);
         const container = new Container();
-        container.addChild(new Text(label, 0, 0));
-        const autoReason = allowDetails?.dcgAutoReason;
-        if (autoReason) {
-          container.addChild(new Text(theme.fg("dim", `model judge: ${autoReason}`), 0, 0));
-        }
+        container.addChild(new Text(statusLine, 0, 0));
         container.addChild(
           buildBashOutputComponent(output, options, theme, result.details as any),
         );
