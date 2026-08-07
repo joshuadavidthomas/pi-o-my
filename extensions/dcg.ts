@@ -796,11 +796,6 @@ export const runJudge = async (params: {
 };
 
 export default function (pi: ExtensionAPI) {
-  pi.registerFlag("dcg-auto", {
-    description: "When dcg blocks a command, let a model judge decide instead of prompting (on by default)",
-    type: "boolean",
-    default: true,
-  });
   pi.registerFlag("no-dcg-auto", {
     description: "Disable dcg auto mode: always prompt when dcg blocks a command",
     type: "boolean",
