@@ -27,22 +27,22 @@ export interface ResolvedScoutModel {
 
 export const SCOUT_MODEL_TARGETS = {
   agent: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
-    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai-codex/gpt-5.6-sol", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.6-sol", thinkingLevel: "medium" },
     { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
     { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
     { model: "claude-agent-sdk/claude-sonnet-5", thinkingLevel: "medium" },
     { model: "anthropic/claude-sonnet-5", thinkingLevel: "medium" },
   ],
   reviewer: [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "medium" },
-    { model: "openai/gpt-5.5", thinkingLevel: "medium" },
+    { model: "openai-codex/gpt-5.6-sol", thinkingLevel: "medium" },
+    { model: "openai/gpt-5.5-sol", thinkingLevel: "medium" },
     { model: "claude-agent-sdk/claude-opus-4-8", thinkingLevel: "high" },
     { model: "anthropic/claude-opus-4-8", thinkingLevel: "high" },
   ],
   "fact-check": [
-    { model: "openai-codex/gpt-5.5", thinkingLevel: "low" },
-    { model: "openai/gpt-5.5", thinkingLevel: "low" },
+    { model: "openai-codex/gpt-5.5-sol", thinkingLevel: "low" },
+    { model: "openai/gpt-5.5-sol", thinkingLevel: "low" },
     { model: "claude-agent-sdk/claude-haiku-4-5", thinkingLevel: "low" },
     { model: "anthropic/claude-haiku-4-5", thinkingLevel: "low" },
   ],

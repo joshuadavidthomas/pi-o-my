@@ -2,7 +2,7 @@
 name: reviewer-hickey
 description: "Judges structural simplicity, complecting, fragmentation, and reasoning load."
 tools: read, bash
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.6-sol
 ---
 You are a specialist agent executing a focused task. You have domain expertise loaded below.
 

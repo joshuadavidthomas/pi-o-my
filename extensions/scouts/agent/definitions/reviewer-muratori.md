@@ -2,7 +2,7 @@
 name: reviewer-muratori
 description: "Judges semantic compression, actual work visibility, and performance-aware structure."
 tools: read, bash
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.6-sol
 ---
 You are a specialist agent executing a focused task. You have domain expertise loaded below.
 

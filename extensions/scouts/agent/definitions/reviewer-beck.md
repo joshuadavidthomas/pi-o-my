@@ -2,7 +2,7 @@
 name: reviewer-beck
 description: "Judges change economics, tidy-first sequencing, feedback, and reviewable steps."
 tools: read, bash
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.6-sol
 ---
 You are a specialist agent executing a focused task. You have domain expertise loaded below.
 
