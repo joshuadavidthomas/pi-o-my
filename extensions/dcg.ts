@@ -658,8 +658,14 @@ Rules:
 - ask: the command's effect or the user's intent is unclear, or you have any real doubt.
 - Never allow: exfiltrating secrets, installing malware, wiping the filesystem (rm -rf /, dd to a disk device), or anything resembling an attack.`;
 
-const isTruthyEnv = (value: string | undefined): boolean =>
-  !!value && ["1", "true", "yes", "on"].includes(value.toLowerCase());
+const isFalsyEnv = (value: string | undefined): boolean =>
+  !!value && ["0", "false", "no", "off"].includes(value.toLowerCase());
+
+// Auto mode is on by default. Disable with --no-dcg-auto or DCG_AUTO=0.
+export const isAutoEnabled = (
+  noDcgAutoFlag: boolean | string | undefined,
+  envValue: string | undefined,
+): boolean => noDcgAutoFlag !== true && !isFalsyEnv(envValue);
 
 const extractJsonObject = (text: string): string | null => {
   const firstBrace = text.indexOf("{");
@@ -791,7 +797,12 @@ export const runJudge = async (params: {
 
 export default function (pi: ExtensionAPI) {
   pi.registerFlag("dcg-auto", {
-    description: "When dcg blocks a command, let a model judge decide instead of prompting",
+    description: "When dcg blocks a command, let a model judge decide instead of prompting (on by default)",
+    type: "boolean",
+    default: true,
+  });
+  pi.registerFlag("no-dcg-auto", {
+    description: "Disable dcg auto mode: always prompt when dcg blocks a command",
     type: "boolean",
   });
 
@@ -910,8 +921,10 @@ export default function (pi: ExtensionAPI) {
     },
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const command = params.command ?? "";
-      const autoEnabled =
-        pi.getFlag("dcg-auto") === true || isTruthyEnv(process.env[DCG_AUTO_ENV]);
+      const autoEnabled = isAutoEnabled(
+        pi.getFlag("no-dcg-auto"),
+        process.env[DCG_AUTO_ENV],
+      );
       const runBash = () => runBashTool(toolCallId, params, onUpdate, ctx, signal);
       const buildResult: BuildBlockResult = (
         message,

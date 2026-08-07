@@ -90,7 +90,7 @@ Displays severity badges, detailed reasons, and tracks allow decisions in tool r
 
 #### Auto mode
 
-Opt in with `--dcg-auto` or `DCG_AUTO=1`. When dcg blocks a command, a model judge reads the recent conversation for user intent and the blocked command, then answers:
+On by default. Disable with `--no-dcg-auto` or `DCG_AUTO=0`. When dcg blocks a command, a model judge reads the recent conversation for user intent and the blocked command, then answers:
 
 - **allow** — the command runs, marked `allowed (auto)` in the result with the judge's reason
 - **deny** or **ask** — the interactive decision prompt appears as usual, now showing the judge's verdict

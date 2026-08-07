@@ -2,10 +2,32 @@ import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { buildJudgeTranscript, parseJudgeOutput } from "../extensions/dcg.ts";
+import { buildJudgeTranscript, isAutoEnabled, parseJudgeOutput } from "../extensions/dcg.ts";
 
 const entry = (overrides: Partial<SessionEntry> & { type: SessionEntry["type"] }): SessionEntry =>
   ({ id: "e1", parentId: null, timestamp: "2025-01-01T00:00:00Z", ...overrides }) as SessionEntry;
+
+describe("isAutoEnabled", () => {
+  it("is on by default", () => {
+    expect(isAutoEnabled(undefined, undefined)).toBe(true);
+  });
+
+  it("turns off with the --no-dcg-auto flag", () => {
+    expect(isAutoEnabled(true, undefined)).toBe(false);
+  });
+
+  it("turns off with a falsy DCG_AUTO value", () => {
+    for (const value of ["0", "false", "no", "off"]) {
+      expect(isAutoEnabled(undefined, value)).toBe(false);
+    }
+  });
+
+  it("stays on for empty or truthy env values", () => {
+    for (const value of [undefined, "", "1", "true", "yes", "on"]) {
+      expect(isAutoEnabled(undefined, value)).toBe(true);
+    }
+  });
+});
 
 describe("parseJudgeOutput", () => {
   it("parses a clean JSON verdict", () => {
