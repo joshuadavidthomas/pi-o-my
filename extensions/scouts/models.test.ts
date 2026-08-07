@@ -1,17 +1,22 @@
 import { describe, expect, it } from "bun:test";
 
 import type { Api, Model } from "@earendil-works/pi-ai";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 import { resolveFirstAvailableModelTarget, resolveModelTarget } from "./models.ts";
 
-const authStorage = AuthStorage.inMemory({
-  anthropic: { type: "api_key", key: "test-anthropic" },
-  "claude-agent-sdk": { type: "api_key", key: "test-claude-agent-sdk" },
-  "openai-codex": { type: "api_key", key: "test-openai-codex" },
-});
+const credentials = new InMemoryCredentialStore();
+await credentials.modify("anthropic", async () => ({ type: "api_key", key: "test-anthropic" }));
+await credentials.modify("claude-agent-sdk", async () => ({ type: "api_key", key: "test-claude-agent-sdk" }));
+await credentials.modify("openai-codex", async () => ({ type: "api_key", key: "test-openai-codex" }));
 
-const registry = ModelRegistry.inMemory(authStorage);
+const runtime = await ModelRuntime.create({
+  credentials,
+  modelsPath: null,
+  refreshOnCreate: false,
+});
+const registry = new ModelRegistry(runtime);
 registry.registerProvider("anthropic", {
   baseUrl: "https://anthropic.test",
   apiKey: "test-anthropic",

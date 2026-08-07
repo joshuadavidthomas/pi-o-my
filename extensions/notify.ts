@@ -9,7 +9,6 @@
  * Elsewhere: falls back to OSC 777 escape sequence (Ghostty, iTerm2, WezTerm, rxvt-unicode).
  */
 
-import { complete } from "@earendil-works/pi-ai";
 import type { TextContent, ToolCall } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
@@ -180,11 +179,8 @@ async function selectSummaryModel(modelRegistry: ExtensionContext["modelRegistry
   for (const { provider, id } of SUMMARY_MODELS) {
     const model = modelRegistry.find(provider, id);
     if (!model) continue;
-
-    const auth = await modelRegistry.getApiKeyAndHeaders(model);
-    if (!auth.ok) continue;
-
-    return { model, apiKey: auth.apiKey, headers: auth.headers };
+    if (!modelRegistry.hasConfiguredAuth(model)) continue;
+    return model;
   }
   return null;
 }
@@ -204,7 +200,7 @@ async function generateNotificationSummary(turnSummary: string, modelRegistry: E
     return "Ready for input";
   }
 
-  const { model, apiKey, headers } = selected;
+  const model = selected;
 
   const prompt = `Generate a desktop notification (max 50 chars). Output ONLY the text, nothing else.
 
@@ -219,7 +215,7 @@ Rules:
 NO QUESTIONS. NO EXPLANATIONS. JUST THE NOTIFICATION TEXT.`;
 
   try {
-    const response = await complete(
+    const response = await modelRegistry.complete(
       model,
       {
         messages: [
@@ -230,7 +226,6 @@ NO QUESTIONS. NO EXPLANATIONS. JUST THE NOTIFICATION TEXT.`;
           },
         ],
       },
-      { apiKey, headers }
     );
 
     const summary = response.content

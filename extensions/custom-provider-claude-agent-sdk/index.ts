@@ -1,4 +1,4 @@
-import { getModels } from "@earendil-works/pi-ai";
+import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import { registerSummarization } from "./compaction.js";
 import { debug } from "./sdk/debug.js";
@@ -9,7 +9,7 @@ export const PROVIDER_ID = "claude-agent-sdk";
 export const API_ID = "claude-agent-sdk";
 
 export const PROVIDER_MODELS: ProviderModelConfig[] = [
-  ...getModels("anthropic")
+  ...getBuiltinModels("anthropic")
     .filter((model) => model.id.startsWith("claude-"))
     .map((model) => ({
       id: model.id,

@@ -20,6 +20,8 @@ import type {
 import {
   SessionManager,
   createAgentSession,
+  getAgentDir,
+  ModelRuntime,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
 
@@ -33,6 +35,37 @@ import { DEFAULT_SCOUT_TIMEOUT_MS, type ScoutConfig, type ScoutDetails } from ".
 
 type ScoutRunDetails = ScoutDetails["runs"][number];
 type ScoutDisplayToolItem = Extract<ScoutRunDetails["displayItems"][number], { type: "tool" }>;
+
+// A scout session runs on its own model runtime. Mirror the parent session's
+// registered provider configs (extension providers like claude-agent-sdk) and
+// any providers the scout resource loader queues, so scout models stream with
+// the same providers the parent session sees.
+async function buildScoutModelRuntime(
+  ctx: ExtensionContext,
+  resourceLoader: ResourceLoader,
+): Promise<ModelRuntime> {
+  const agentDir = getAgentDir();
+  const modelRuntime = await ModelRuntime.create({
+    authPath: join(agentDir, "auth.json"),
+    modelsPath: join(agentDir, "models.json"),
+    refreshOnCreate: false,
+  });
+
+  for (const providerId of ctx.modelRegistry.getRegisteredProviderIds()) {
+    const config = ctx.modelRegistry.getRegisteredProviderConfig(providerId);
+    if (config) modelRuntime.registerProvider(providerId, config);
+  }
+
+  const extensionsResult = resourceLoader.getExtensions();
+  for (const { name, config } of extensionsResult.runtime.pendingProviderRegistrations) {
+    modelRuntime.registerProvider(name, config);
+  }
+  for (const { provider } of extensionsResult.runtime.pendingNativeProviderRegistrations) {
+    modelRuntime.registerNativeProvider(provider);
+  }
+
+  return modelRuntime;
+}
 
 // EventTarget max listeners management for nested sessions
 const DEFAULT_EVENTTARGET_MAX_LISTENERS = 100;
@@ -1066,7 +1099,7 @@ class ScoutWorkflow {
     const activeToolNames = [...builtinTools, ...customTools.map((tool) => tool.name)];
     return createAgentSession({
       cwd: this.ctx.cwd,
-      modelRegistry: this.ctx.modelRegistry,
+      modelRuntime: await buildScoutModelRuntime(this.ctx, resourceLoader),
       resourceLoader,
       sessionManager: SessionManager.inMemory(this.ctx.cwd),
       model: runPlan.model,

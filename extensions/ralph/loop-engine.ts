@@ -16,7 +16,6 @@ import {
 	type AgentSessionEvent,
 	type AgentSessionRuntime,
 	type CreateAgentSessionRuntimeFactory,
-	type ModelRegistry,
 	SessionManager,
 	createAgentSessionFromServices,
 	createAgentSessionRuntime,
@@ -55,7 +54,6 @@ export interface LoopEngineCallbacks {
 
 /** Dependencies from the parent pi session needed to create child sessions */
 export interface LoopEngineSessionDeps {
-	modelRegistry: ModelRegistry;
 	model?: Model<any>;
 	thinkingLevel?: ThinkingLevel;
 }
@@ -151,8 +149,6 @@ export class LoopEngine {
 				const services = await createAgentSessionServices({
 					cwd,
 					agentDir,
-					authStorage: this.sessionDeps.modelRegistry.authStorage,
-					modelRegistry: this.sessionDeps.modelRegistry,
 				});
 				return {
 					...(await createAgentSessionFromServices({

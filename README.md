@@ -88,6 +88,15 @@ Runs every bash command through dcg's hook mode before execution. When dcg block
 
 Displays severity badges, detailed reasons, and tracks allow decisions in tool results. Falls back gracefully when dcg isn't available or returns unexpected output.
 
+#### Auto mode
+
+Opt in with `--dcg-auto` or `DCG_AUTO=1`. When dcg blocks a command, a model judge reads the recent conversation for user intent and the blocked command, then answers:
+
+- **allow** — the command runs, marked `allowed (auto)` in the result with the judge's reason
+- **deny** or **ask** — the interactive decision prompt appears as usual, now showing the judge's verdict
+
+The judge only short-circuits the prompt. dcg still guards every command, auto decisions last one invocation (never written to the allowlist), and any judge failure falls back to the prompt. The judge uses the session model, or `DCG_AUTO_MODEL=provider/modelId` for a specific one.
+
 #### [editor](./extensions/editor.ts)
 
 Widens pi's autocomplete column so long model and provider IDs are easier to read in pickers like `/model`.

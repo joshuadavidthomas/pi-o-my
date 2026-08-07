@@ -797,7 +797,6 @@ export default function (pi: ExtensionAPI) {
 				},
 			},
 			{
-				modelRegistry,
 				model: resolvedModel,
 				thinkingLevel,
 			},

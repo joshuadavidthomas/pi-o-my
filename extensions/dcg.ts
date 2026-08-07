@@ -10,8 +10,8 @@ import {
   keyHint,
   truncateToVisualLines,
 } from "@earendil-works/pi-coding-agent";
-import type { AgentToolUpdateCallback, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type { AgentToolUpdateCallback, ExtensionAPI, ModelRegistry, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { Context, ImageContent, Model, TextContent } from "@earendil-works/pi-ai";
 import {
   Container,
   type Component,
@@ -47,11 +47,13 @@ type DcgBlockDetails = {
   fullReason: string;
 };
 
-type DcgAllowType = "once" | "session" | "always" | "always-project" | "always-global";
+type DcgAllowType = "once" | "session" | "auto" | "always" | "always-project" | "always-global";
 
 type DcgAllowedDetails = {
   dcgAllowed: true;
   allowType: DcgAllowType;
+  /** Model judge's reason, when the command was auto-allowed. */
+  dcgAutoReason?: string;
 };
 
 type DcgDecision =
@@ -61,6 +63,20 @@ type DcgDecision =
   | "allowAlways"
   | "allowAlwaysProject"
   | "allowAlwaysGlobal";
+
+type JudgeVerdict = "allow" | "deny" | "ask";
+
+type JudgeResult = {
+  verdict: JudgeVerdict;
+  reason: string;
+};
+
+/** The parts of ExtensionContext the judge needs. Kept structural for tests. */
+type JudgeContext = {
+  modelRegistry: ModelRegistry;
+  model: Model<any> | undefined;
+  signal: AbortSignal | undefined;
+};
 
 const getDecisionReason = (reason: string | undefined): string => {
   if (!reason) return "Blocked by dcg";
@@ -118,6 +134,14 @@ const getBashOutputText = (content: Array<TextContent | ImageContent> | undefine
 const BASH_PREVIEW_LINES = 5;
 const DCG_DECISION_TIMEOUT_MS = 2 * 60 * 1000;
 const DCG_DECISION_TIMEOUT_SECONDS = DCG_DECISION_TIMEOUT_MS / 1000;
+
+const DCG_AUTO_ENV = "DCG_AUTO";
+const DCG_AUTO_MODEL_ENV = "DCG_AUTO_MODEL";
+const JUDGE_MAX_ENTRIES = 40;
+const JUDGE_MAX_ENTRY_CHARS = 2000;
+const JUDGE_MAX_TRANSCRIPT_CHARS = 24000;
+const JUDGE_MAX_TOKENS = 500;
+const JUDGE_TIMEOUT_MS = 30 * 1000;
 
 const buildBashOutputComponent = (
   output: string,
@@ -206,6 +230,7 @@ class DcgDecisionComponent implements Component {
       allowOnceCode?: string;
       ruleId?: string;
       severity?: string;
+      judge?: JudgeResult | null;
     },
     private readonly tui: any,
     private readonly theme: any,
@@ -271,6 +296,13 @@ class DcgDecisionComponent implements Component {
     const reasonLine =
       this.theme.fg("dim", "Reason: ") + this.theme.fg("text", this.data.reason);
     this.container.addChild(new Text(reasonLine, 1, 0));
+
+    if (this.data.judge) {
+      const judgeLabel = this.data.judge.verdict === "deny"
+        ? this.theme.fg("warning", "Model judge: deny")
+        : this.theme.fg("muted", "Model judge: unclear");
+      this.container.addChild(new Text(`${judgeLabel} — ${this.data.judge.reason}`, 1, 0));
+    }
 
     if (this.showDetails) {
       this.container.addChild(new Text(this.theme.fg("muted", this.data.details), 1, 0));
@@ -502,11 +534,20 @@ const runHookDecision = async ({
   };
 };
 
-const runBashWithAllowType = async (runBash: () => Promise<unknown>, allowType: DcgAllowType) => {
+const runBashWithAllowType = async (
+  runBash: () => Promise<unknown>,
+  allowType: DcgAllowType,
+  autoReason?: string,
+) => {
   const bashResult = await runBash() as { content: Array<TextContent | ImageContent>; details?: Record<string, unknown> };
   return {
     ...bashResult,
-    details: { ...bashResult.details, dcgAllowed: true, allowType },
+    details: {
+      ...bashResult.details,
+      dcgAllowed: true,
+      allowType,
+      ...(autoReason !== undefined ? { dcgAutoReason: autoReason } : {}),
+    },
   };
 };
 
@@ -606,7 +647,154 @@ const applyAllowlist = async ({
   });
 };
 
+const JUDGE_SYSTEM_PROMPT = `You are a safety judge for a coding agent's shell commands. A guard flagged a command as potentially destructive. Decide whether the user's intent in this conversation justifies running it.
+
+Reply with exactly one JSON object and nothing else:
+{"verdict": "allow" | "deny" | "ask", "reason": "<one or two sentences>"}
+
+Rules:
+- allow: the command directly and clearly serves the user's stated request, or an obvious safe continuation of it.
+- deny: the command is destructive and the conversation gives no support for it, or the command contradicts what the user asked for.
+- ask: the command's effect or the user's intent is unclear, or you have any real doubt.
+- Never allow: exfiltrating secrets, installing malware, wiping the filesystem (rm -rf /, dd to a disk device), or anything resembling an attack.`;
+
+const isTruthyEnv = (value: string | undefined): boolean =>
+  !!value && ["1", "true", "yes", "on"].includes(value.toLowerCase());
+
+const extractJsonObject = (text: string): string | null => {
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+  return text.slice(firstBrace, lastBrace + 1);
+};
+
+export const parseJudgeOutput = (output: string): JudgeResult | null => {
+  const jsonText = extractJsonObject(output);
+  if (!jsonText) return null;
+  try {
+    const parsed = JSON.parse(jsonText) as { verdict?: unknown; reason?: unknown };
+    if (parsed.verdict !== "allow" && parsed.verdict !== "deny" && parsed.verdict !== "ask") {
+      return null;
+    }
+    return {
+      verdict: parsed.verdict,
+      reason: typeof parsed.reason === "string" ? parsed.reason : "",
+    };
+  } catch {
+    return null;
+  }
+};
+
+// Recent user/assistant turns plus compaction summaries: enough for the judge
+// to see intent without flooding the prompt with tool output.
+export const buildJudgeTranscript = (entries: SessionEntry[]): string => {
+  const lines: string[] = [];
+  let totalChars = 0;
+
+  for (const entry of entries.slice(-JUDGE_MAX_ENTRIES)) {
+    let label: string;
+    let text: string | undefined;
+
+    if (entry.type === "compaction") {
+      label = "[compacted history]";
+      text = entry.summary;
+    } else if (entry.type === "message") {
+      const message = entry.message;
+      if (message.role !== "user" && message.role !== "assistant") continue;
+      label = message.role === "user" ? "[user]" : "[assistant]";
+      const content = message.content;
+      text = typeof content === "string"
+        ? content
+        : content
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("\n");
+    } else {
+      continue;
+    }
+
+    const trimmed = text?.trim();
+    if (!trimmed) continue;
+
+    const line = `${label} ${trimmed.slice(0, JUDGE_MAX_ENTRY_CHARS)}`;
+    if (totalChars + line.length > JUDGE_MAX_TRANSCRIPT_CHARS) break;
+    lines.push(line);
+    totalChars += line.length;
+  }
+
+  return lines.join("\n");
+};
+
+const resolveJudgeModel = (ctx: JudgeContext): Model<any> | undefined => {
+  const override = process.env[DCG_AUTO_MODEL_ENV];
+  if (override) {
+    const slashIndex = override.indexOf("/");
+    if (slashIndex > 0) {
+      const found = ctx.modelRegistry.find(
+        override.slice(0, slashIndex),
+        override.slice(slashIndex + 1),
+      );
+      if (found) return found;
+    }
+  }
+  return ctx.model;
+};
+
+// Ask the model whether the blocked command matches the user's intent.
+// Any failure returns null, and the caller falls back to the interactive prompt.
+export const runJudge = async (params: {
+  command: string;
+  reason: string;
+  cwd: string;
+  transcript: string;
+  ctx: JudgeContext;
+}): Promise<JudgeResult | null> => {
+  const model = resolveJudgeModel(params.ctx);
+  if (!model) return null;
+
+  const userPrompt = [
+    "Conversation so far (most recent last):",
+    "",
+    params.transcript || "(no prior conversation)",
+    "",
+    `Working directory: ${params.cwd}`,
+    "",
+    "Command flagged by the guard:",
+    `$ ${params.command}`,
+    "",
+    `Guard reason: ${params.reason}`,
+    "",
+    "Verdict?",
+  ].join("\n");
+
+  const context: Context = {
+    systemPrompt: JUDGE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt, timestamp: Date.now() }],
+  };
+
+  try {
+    const response = await params.ctx.modelRegistry.complete(model, context, {
+      maxTokens: JUDGE_MAX_TOKENS,
+      temperature: 0,
+      signal: params.ctx.signal,
+      timeoutMs: JUDGE_TIMEOUT_MS,
+    });
+    const text = response.content
+      .filter((part): part is TextContent => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+    return parseJudgeOutput(text);
+  } catch {
+    return null;
+  }
+};
+
 export default function (pi: ExtensionAPI) {
+  pi.registerFlag("dcg-auto", {
+    description: "When dcg blocks a command, let a model judge decide instead of prompting",
+    type: "boolean",
+  });
+
   const runDcgHook = async (command: string, cwd: string) => {
     const payload = JSON.stringify({ tool_name: "Bash", tool_input: { command } });
     const escapedPayload = escapeForSingleQuotes(payload);
@@ -675,12 +863,13 @@ export default function (pi: ExtensionAPI) {
         const stateLabelByType: Record<DcgAllowType, string> = {
           once: "allowed (once)",
           session: "allowed (session)",
+          auto: "allowed (auto)",
           always: "allowed",
           "always-project": "allowed",
           "always-global": "allowed",
         };
         const allowState = stateLabelByType[allowDetails.allowType] ?? "allowed";
-        const color = allowDetails.allowType === "once" || allowDetails.allowType === "session"
+        const color = allowDetails.allowType === "once" || allowDetails.allowType === "session" || allowDetails.allowType === "auto"
           ? "warning"
           : "success";
         const state = theme.fg(color, allowState);
@@ -688,6 +877,10 @@ export default function (pi: ExtensionAPI) {
         const output = getBashOutputText(result.content);
         const container = new Container();
         container.addChild(new Text(label, 0, 0));
+        const autoReason = allowDetails?.dcgAutoReason;
+        if (autoReason) {
+          container.addChild(new Text(theme.fg("dim", `model judge: ${autoReason}`), 0, 0));
+        }
         container.addChild(
           buildBashOutputComponent(output, options, theme, result.details as any),
         );
@@ -717,6 +910,8 @@ export default function (pi: ExtensionAPI) {
     },
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const command = params.command ?? "";
+      const autoEnabled =
+        pi.getFlag("dcg-auto") === true || isTruthyEnv(process.env[DCG_AUTO_ENV]);
       const runBash = () => runBashTool(toolCallId, params, onUpdate, ctx, signal);
       const buildResult: BuildBlockResult = (
         message,
@@ -746,8 +941,36 @@ export default function (pi: ExtensionAPI) {
           return runBashWithAllowType(runBash, "session");
         }
 
+        let judge: JudgeResult | null = null;
+        if (autoEnabled) {
+          const statusKey = "dcg-auto";
+          if (ctx.hasUI) {
+            ctx.ui.setStatus(statusKey, "dcg: model judge reviewing command…");
+          }
+          try {
+            judge = await runJudge({
+              command,
+              reason,
+              cwd: ctx.cwd,
+              transcript: buildJudgeTranscript(ctx.sessionManager.buildContextEntries()),
+              ctx,
+            });
+          } finally {
+            if (ctx.hasUI) {
+              ctx.ui.setStatus(statusKey, undefined);
+            }
+          }
+        }
+
+        if (judge?.verdict === "allow") {
+          return runBashWithAllowType(runBash, "auto", judge.reason);
+        }
+
         if (!ctx.hasUI) {
-          return buildResult(reason, reason, decisionReason, decisionReason);
+          const deniedSummary = judge?.verdict === "deny"
+            ? `Model judge denied: ${judge.reason}`
+            : decisionReason;
+          return buildResult(reason, reason, deniedSummary, deniedSummary);
         }
 
         const result = await ctx.ui.custom<DcgDecision | null>((tui, theme, _kb, done) =>
@@ -759,6 +982,7 @@ export default function (pi: ExtensionAPI) {
               allowOnceCode: hookOutput?.allowOnceCode,
               ruleId,
               severity: hookOutput?.severity,
+              judge,
             },
             tui,
             theme,

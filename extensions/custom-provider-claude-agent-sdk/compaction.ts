@@ -7,7 +7,7 @@
  * Route compaction and tree summaries to an authenticated non-Claude model.
  */
 
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import {
   compact,
   generateBranchSummary,
@@ -33,6 +33,16 @@ interface ResolvedSummarizer {
   apiKey: string;
   headers: Record<string, string> | undefined;
 }
+
+// Auth headers are ProviderHeaders (values may be null to suppress a default
+// header); compaction takes plain Record<string, string>. Drop the nulls.
+const toRecordHeaders = (headers: ProviderHeaders | undefined): Record<string, string> | undefined => {
+  if (!headers) return undefined;
+  const entries = Object.entries(headers).filter(
+    (entry): entry is [string, string] => entry[1] !== null,
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
 
 async function selectSummarizer(
   modelRegistry: ExtensionContext["modelRegistry"],
@@ -61,7 +71,7 @@ async function selectSummarizer(
       debug("compaction:candidate-no-auth", { model: candidate.id });
       continue;
     }
-    return { model, apiKey: auth.apiKey, headers: auth.headers };
+    return { model, apiKey: auth.apiKey, headers: toRecordHeaders(auth.headers) };
   }
   return undefined;
 }

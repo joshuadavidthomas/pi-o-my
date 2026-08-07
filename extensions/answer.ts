@@ -10,8 +10,8 @@
  * 4. Submits the compiled answers when done
  */
 
-import { complete, type Model, type Api, type UserMessage } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type Model, type Api, type UserMessage } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, ExtensionContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { BorderedLoader } from "@earendil-works/pi-coding-agent";
 import {
   type Component,
@@ -75,10 +75,7 @@ const HAIKU_MODEL_ID = "claude-haiku-4-5";
  */
 async function selectExtractionModel(
   currentModel: Model<Api>,
-  modelRegistry: {
-    find: (provider: string, modelId: string) => Model<Api> | undefined;
-    getApiKeyAndHeaders: (model: Model<Api>) => Promise<{ ok: boolean; apiKey?: string; headers?: Record<string, string> }>;
-  },
+  modelRegistry: ModelRegistry,
 ): Promise<Model<Api>> {
   const codexModel = modelRegistry.find("openai-codex", CODEX_MODEL_ID);
   if (codexModel) {
@@ -460,20 +457,16 @@ export default function (pi: ExtensionAPI) {
       loader.onAbort = () => done(null);
 
       const doExtract = async () => {
-        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(extractionModel);
-        if (!auth.ok || !auth.apiKey) {
-          throw new Error(auth.ok ? `No API key for ${extractionModel.provider}` : auth.error);
-        }
         const userMessage: UserMessage = {
           role: "user",
           content: [{ type: "text", text: lastAssistantText! }],
           timestamp: Date.now(),
         };
 
-        const response = await complete(
+        const response = await ctx.modelRegistry.complete(
           extractionModel,
           { systemPrompt: SYSTEM_PROMPT, messages: [userMessage] },
-          { apiKey: auth.apiKey, headers: auth.headers, signal: loader.signal },
+          { signal: loader.signal },
         );
 
         if (response.stopReason === "aborted") {
