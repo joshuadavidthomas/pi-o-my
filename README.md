@@ -95,7 +95,9 @@ On by default. Disable with `--no-dcg-auto` or `DCG_AUTO=0`. When dcg blocks a c
 - **allow** — the command runs, marked `allowed (auto)` in the result with the judge's reason
 - **deny** or **ask** — the interactive decision prompt appears as usual, now showing the judge's verdict
 
-The judge only short-circuits the prompt. dcg still guards every command, auto decisions last one invocation (never written to the allowlist), and any judge failure falls back to the prompt. The judge uses the session model, or `DCG_AUTO_MODEL=provider/modelId` for a specific one.
+The judge only short-circuits the prompt. dcg still guards every command, auto decisions last one invocation (never written to the allowlist), and any judge failure falls back to the prompt.
+
+The judge runs on the session model by default. Pick a different one per session with `/dcg-judge-model <provider>/<modelId>` (reset with `/dcg-judge-model default`), or set `DCG_AUTO_MODEL=provider/modelId` in the environment for a permanent preference. Env wins over the command; unknown ids fall back to the session model. The footer shows which model is judging while the call runs.
 
 #### [editor](./extensions/editor.ts)
 

@@ -78,6 +78,8 @@ type JudgeContext = {
   signal: AbortSignal | undefined;
 };
 
+type JudgeModelOverride = { provider: string; modelId: string };
+
 const getDecisionReason = (reason: string | undefined): string => {
   if (!reason) return "Blocked by dcg";
   try {
@@ -731,17 +733,29 @@ export const buildJudgeTranscript = (entries: SessionEntry[]): string => {
   return lines.join("\n");
 };
 
-const resolveJudgeModel = (ctx: JudgeContext): Model<any> | undefined => {
-  const override = process.env[DCG_AUTO_MODEL_ENV];
-  if (override) {
-    const slashIndex = override.indexOf("/");
-    if (slashIndex > 0) {
-      const found = ctx.modelRegistry.find(
-        override.slice(0, slashIndex),
-        override.slice(slashIndex + 1),
-      );
-      if (found) return found;
-    }
+const parseModelSpec = (spec: string): JudgeModelOverride | null => {
+  const slashIndex = spec.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === spec.length - 1) return null;
+  return {
+    provider: spec.slice(0, slashIndex).trim(),
+    modelId: spec.slice(slashIndex + 1).trim(),
+  };
+};
+
+// Which model judges: DCG_AUTO_MODEL env wins, then /dcg-judge-model, then the session model.
+export const resolveJudgeModel = (
+  ctx: {
+    modelRegistry: { find: (provider: string, modelId: string) => Model<any> | undefined };
+    model: Model<any> | undefined;
+  },
+  override: JudgeModelOverride | null,
+): Model<any> | undefined => {
+  const envSpec = process.env[DCG_AUTO_MODEL_ENV];
+  const envOverride = envSpec ? parseModelSpec(envSpec) : null;
+  for (const candidate of [envOverride, override]) {
+    if (!candidate) continue;
+    const found = ctx.modelRegistry.find(candidate.provider, candidate.modelId);
+    if (found) return found;
   }
   return ctx.model;
 };
@@ -753,9 +767,10 @@ export const runJudge = async (params: {
   reason: string;
   cwd: string;
   transcript: string;
+  model: Model<any> | undefined;
   ctx: JudgeContext;
 }): Promise<JudgeResult | null> => {
-  const model = resolveJudgeModel(params.ctx);
+  const model = params.model;
   if (!model) return null;
 
   const userPrompt = [
@@ -799,6 +814,49 @@ export default function (pi: ExtensionAPI) {
   pi.registerFlag("no-dcg-auto", {
     description: "Disable dcg auto mode: always prompt when dcg blocks a command",
     type: "boolean",
+  });
+
+  let judgeModelOverride: JudgeModelOverride | null = null;
+
+  pi.registerCommand("dcg-judge-model", {
+    description: "Set the model used by the dcg auto judge: <provider>/<modelId>, or 'default' to use the session model",
+    handler: async (args, ctx) => {
+      const input = args.trim();
+      if (!input) {
+        const current = resolveJudgeModel(ctx, judgeModelOverride);
+        ctx.ui.notify(
+          current
+            ? `dcg judge model: ${current.provider}/${current.id}`
+            : "dcg judge: no model available",
+          "info",
+        );
+        return;
+      }
+      if (input === "default" || input === "off" || input === "reset") {
+        judgeModelOverride = null;
+        ctx.ui.notify("dcg judge model: session model", "info");
+        return;
+      }
+      const spec = parseModelSpec(input);
+      if (!spec) {
+        ctx.ui.notify("Usage: /dcg-judge-model <provider>/<modelId> (or 'default')", "error");
+        return;
+      }
+      const model = ctx.modelRegistry.find(spec.provider, spec.modelId);
+      if (!model) {
+        ctx.ui.notify(`No model ${spec.provider}/${spec.modelId}`, "error");
+        return;
+      }
+      if (!ctx.modelRegistry.hasConfiguredAuth(model)) {
+        ctx.ui.notify(
+          `${spec.provider}/${spec.modelId} has no configured auth; judge falls back to the session model`,
+          "error",
+        );
+        return;
+      }
+      judgeModelOverride = spec;
+      ctx.ui.notify(`dcg judge model: ${spec.provider}/${spec.modelId}`, "info");
+    },
   });
 
   const runDcgHook = async (command: string, cwd: string) => {
@@ -951,9 +1009,13 @@ export default function (pi: ExtensionAPI) {
 
         let judge: JudgeResult | null = null;
         if (autoEnabled) {
+          const judgeModel = resolveJudgeModel(ctx, judgeModelOverride);
           const statusKey = "dcg-auto";
           if (ctx.hasUI) {
-            ctx.ui.setStatus(statusKey, "dcg: model judge reviewing command…");
+            const judgeLabel = judgeModel
+              ? `dcg: ${judgeModel.provider}/${judgeModel.id} judging…`
+              : "dcg: judging…";
+            ctx.ui.setStatus(statusKey, judgeLabel);
           }
           try {
             judge = await runJudge({
@@ -962,6 +1024,7 @@ export default function (pi: ExtensionAPI) {
               cwd: ctx.cwd,
               transcript: buildJudgeTranscript(ctx.sessionManager.buildContextEntries()),
               ctx,
+              model: judgeModel,
             });
           } finally {
             if (ctx.hasUI) {

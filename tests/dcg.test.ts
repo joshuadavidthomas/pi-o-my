@@ -1,11 +1,58 @@
 import { describe, expect, it } from "bun:test";
 
+import type { Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
-import { buildJudgeTranscript, isAutoEnabled, parseJudgeOutput } from "../extensions/dcg.ts";
+import { buildJudgeTranscript, isAutoEnabled, parseJudgeOutput, resolveJudgeModel } from "../extensions/dcg.ts";
 
 const entry = (overrides: Partial<SessionEntry> & { type: SessionEntry["type"] }): SessionEntry =>
   ({ id: "e1", parentId: null, timestamp: "2025-01-01T00:00:00Z", ...overrides }) as SessionEntry;
+
+describe("resolveJudgeModel", () => {
+  const DCG_AUTO_MODEL = "DCG_AUTO_MODEL";
+  const model = (provider: string, id: string) => ({ provider, id }) as unknown as Model<any>;
+  const sessionModel = model("opencode-go", "session-model");
+  const registry = (models: Array<{ provider: string; id: string }>) => ({
+    find: (provider: string, modelId: string) =>
+      models.find((m) => m.provider === provider && m.id === modelId),
+  });
+
+  it("uses the session model when nothing is set", () => {
+    expect(resolveJudgeModel({ modelRegistry: registry([]), model: sessionModel }, null)).toBe(sessionModel);
+  });
+
+  it("prefers a stored override over the session model", () => {
+    const overrideModel = model("anthropic", "claude-haiku-4-5");
+    const ctx = { modelRegistry: registry([overrideModel]), model: sessionModel };
+    expect(resolveJudgeModel(ctx, { provider: "anthropic", modelId: "claude-haiku-4-5" })).toBe(overrideModel);
+  });
+
+  it("prefers DCG_AUTO_MODEL over a stored override", () => {
+    process.env[DCG_AUTO_MODEL] = "anthropic/claude-sonnet-5";
+    try {
+      const envModel = model("anthropic", "claude-sonnet-5");
+      const overrideModel = model("anthropic", "claude-haiku-4-5");
+      const ctx = { modelRegistry: registry([envModel, overrideModel]), model: sessionModel };
+      expect(resolveJudgeModel(ctx, { provider: "anthropic", modelId: "claude-haiku-4-5" })).toBe(envModel);
+    } finally {
+      delete process.env[DCG_AUTO_MODEL];
+    }
+  });
+
+  it("falls back to the session model when the override is unknown", () => {
+    const ctx = { modelRegistry: registry([]), model: sessionModel };
+    expect(resolveJudgeModel(ctx, { provider: "nope", modelId: "nope" })).toBe(sessionModel);
+  });
+
+  it("ignores a malformed DCG_AUTO_MODEL value", () => {
+    process.env[DCG_AUTO_MODEL] = "no-slash-here";
+    try {
+      expect(resolveJudgeModel({ modelRegistry: registry([]), model: sessionModel }, null)).toBe(sessionModel);
+    } finally {
+      delete process.env[DCG_AUTO_MODEL];
+    }
+  });
+});
 
 describe("isAutoEnabled", () => {
   it("is on by default", () => {
