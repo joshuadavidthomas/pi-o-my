@@ -66,7 +66,7 @@ export const AgentParams = Type.Object({
     description: "Complete brief for the agent. Required unless resume is set. When resume is set, this is an optional follow-up steering note for the suspended run and other parameters are ignored.",
   })),
   subagent_type: Type.Optional(Type.String({
-    description: `Optional loaded agent definition name. Shipped definitions are:\n${SHIPPED_AGENT_DEFINITION_DESCRIPTION}\nDefinitions also load from ~/.pi/agent/agents/*.md and .pi/agents/*.md; project/user names are reported in the error if the requested name is unknown. Definition frontmatter provides defaults: tools union with the base/call-site pool, skills append before call-site skills with duplicates removed, and frontmatter model is overridden by call-site model.`,
+    description: `Optional loaded agent definition name. Shipped definitions are:\n${SHIPPED_AGENT_DEFINITION_DESCRIPTION}\nDefinitions also load from ~/.pi/agent/agents/*.md and .pi/agents/*.md; project/user names are reported in the error if the requested name is unknown. Definition frontmatter provides defaults: tools union with the base/call-site non-mutating pool, skills append before call-site skills with duplicates removed, and frontmatter model is overridden by call-site model. A definition with an explicit tools list must include both Edit and Write to permit mutation.`,
   })),
   role: Type.Optional(Type.String({
     description: "Additional system-prompt layer for this run. Applied after definition and skills so call-site instructions win conflicts with definition content. The final agent system frame is appended after definition, skills, and role; that frame owns timeout and output-protocol rules and is not overridden by role.",
@@ -261,6 +261,11 @@ export function buildAgentScoutConfig(
   const mutationResult = agentMutation(params.mutation);
   if (mutationResult && "error" in mutationResult) return mutationResult;
   const mutation = mutationResult;
+  if (mutation && definition?.tools !== undefined && !definition.allowsMutation) {
+    return {
+      error: `Agent definition "${definition.name}" does not allow mutation. Add both Edit and Write to its tools list, or omit subagent_type for an inline mutating agent.`,
+    };
+  }
 
   const callSiteSkills = stringList(params.skills);
   const skillNames = mergeSkillNames(definition, callSiteSkills);
@@ -444,8 +449,8 @@ export const AGENT_TOOL: ToolDefinition<typeof AgentParams, ScoutDetails> = {
   label: "Agent",
   description: [
     "Dynamic scout subagent. Use for one in-process child run: pick a loaded definition with subagent_type (for example finder, oracle, librarian, or reviewer-*), add inline role/skills/tools/model, or opt into bounded mutation with mutation.",
-    "Read-only by default with the base pool [read, bash]. The tools parameter selects only from the non-mutating pool: read, bash, github_search, github_grep, github_read_file, github_list_dir, github_find_files, github_search_repos, web_search, web_fetch. edit/write are granted only when mutation is present.",
-    "mutation.isolation=shared edits the live checkout under the fail-fast single shared-checkout mutation lock. Omit mutation for read-only agent runs.",
+    "Read-only by default with the base pool [read, bash]. The tools parameter selects only from the non-mutating pool: read, bash, github_search, github_grep, github_read_file, github_list_dir, github_find_files, github_search_repos, web_search, web_fetch. edit/write require mutation, and a selected definition with an explicit tools list must also include both Edit and Write.",
+    "mutation.isolation=shared edits the live checkout under the fail-fast single shared-checkout mutation lock. Omit mutation for read-only agent runs. Mutation cannot expand a selected definition's explicit tool allowlist.",
     `Shipped subagent_type values:\n${SHIPPED_AGENT_DEFINITION_DESCRIPTION}`,
     "Definitions are also loaded from ~/.pi/agent/agents/*.md and .pi/agents/*.md. This static registration cannot enumerate project-specific definition names in the schema; if subagent_type is unknown, the error lists available names and descriptions.",
     "Precedence: definition frontmatter tools union with the base/call-site pool; definition skills append before call-site skills with duplicates removed; definition frontmatter model is a default and call-site model overrides it. Definition body, skills, and role are followed by the final agent system frame, which owns timeout/output-protocol rules.",

@@ -117,7 +117,7 @@ Prompt body.
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("warns and ignores unknown tools, and strips Edit/Write", () => {
+  it("records Edit and Write as mutation capability while resolving non-mutating tools", () => {
     const shipped = tempDir();
     const home = tempDir();
     const project = tempDir();
@@ -131,10 +131,9 @@ Body
     const result = loadWithDirs(project, shipped, home);
 
     expect(result.definitions.get("tool-agent")?.tools).toEqual(["read", "web_fetch"]);
+    expect(result.definitions.get("tool-agent")?.allowsMutation).toBe(true);
     expect(result.diagnostics).toEqual([
       `${sourcePath}: Tool "Grep" is not in the scouts agent tool pool. Ignoring.`,
-      `${sourcePath}: Tool "Edit" cannot be granted through the agent tool pool; use the mutation parameter to grant write access. Ignoring.`,
-      `${sourcePath}: Tool "Write" cannot be granted through the agent tool pool; use the mutation parameter to grant write access. Ignoring.`,
     ]);
   });
 

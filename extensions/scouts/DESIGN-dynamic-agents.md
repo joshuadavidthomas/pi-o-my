@@ -69,7 +69,7 @@ Dispatch is one question: *one child?* → `agent` (naming a definition when a p
 
 Two structural pieces make the demotion safe:
 
-- **Tool pool.** The extension owns a static pool of non-mutating tools: base `read` + `bash`, plus the extended set that made librarian special (`github_search`, `web_search`, `web_fetch`, …). Definitions and call sites *select* from the pool by name; they cannot add to it. `edit`/`write` are never pool-selectable — they are granted solely by the call-site `mutation` object, so lock/workspace semantics (I1/I7) stay a per-call decision no file can pre-empt.
+- **Tool pool.** The extension owns a static pool of non-mutating tools: base `read` + `bash`, plus the extended set that made librarian special (`github_search`, `web_search`, `web_fetch`, …). Definitions and call sites *select* from the pool by name; they cannot add to it. `mutation` remains the call-site switch that grants `edit`/`write` and chooses isolation, but a definition with an explicit tool allowlist must include both `Edit` and `Write` or the mutating call is rejected.
 - **Pure-markdown definitions.** A definition is YAML frontmatter + body-as-system-prompt. Parsing markdown runs no code, so user definition files are safe by construction — no dynamic imports, no code-bearing definition dirs, no child-only extension loading. Cost, honestly: the pool is the union of everything any scout needs and grows only by editing the extension; users can't bring novel tools via definitions — the same constraint Claude Code ships, which hasn't hurt it. (MCP servers remain pi's answer for exotic user tools.)
 
 The seam already exists: `executeScout(config, params, ...)` is generic over any runtime-built `ScoutConfig` (execute.ts); specialist and reviewer already build configs dynamically from files. Unknown config names already fall back to specialist model targets (models.ts). The work is the model-facing surface, not session machinery.
@@ -104,7 +104,7 @@ Portability rules (each mirrors a documented behavior elsewhere):
 Conscious divergences (documented, not accidental):
 
 - **Omitted `tools` = base pool (`read`+`bash`), not inherit-everything.** CC inherits all tools when the field is absent; scouts' read-only-by-default posture wins here.
-- **`Edit`/`Write` in a `tools` list are stripped with a load-time note.** Mutation is exclusively a call-site decision (`mutation` object); a file never pre-grants it. Same reasoning ignores CC's `isolation: worktree` frontmatter — that's `mutation.isolation` at the call site.
+- **`Edit`/`Write` in a `tools` list authorize, but do not activate, mutation.** The call site must still provide `mutation` and its required isolation. An explicit definition allowlist without both names cannot be expanded into a writer by the caller. CC's `isolation: worktree` frontmatter remains ignored because isolation belongs to `mutation.isolation` at the call site.
 - **No `temperature`/`top_p`/`thinking` frontmatter** — poorly portable (only opencode and Gemini CLI standardize temperature; thinking spellings diverge across pi extensions) and call-site `effort` already owns that knob.
 
 The iteration ladder stays cheap: inline `role` (no file) → markdown definition when the persona sticks → novel tool = an ordinary edit to the extension.
@@ -149,14 +149,14 @@ agent({
 The shape is deliberate — make illegal states unrepresentable rather than forbidden in prose:
 
 - **Mutation is one optional object**, not a `readOnly` flag plus dependent params. `readOnly: true` with edit tools, `isolation` on a read-only agent, orphaned `allowedPaths` — none of these are expressible. The dependent params live inside the thing they depend on.
-- **`tools` selects, never grants.** Call-site `tools` (unioned with the definition's list) draws only from the non-mutating pool; `edit`/`write` are not pool names, so no combination of definition + call-site selection produces a mutating child — only `mutation` does. (Bash was never truly read-only anyway; the pool doesn't pretend otherwise.)
+- **`tools` bounds mutation; `mutation` activates it.** Call-site `tools` draws only from the non-mutating pool. A definition's explicit `tools` list must include both `Edit` and `Write` before `mutation` can activate writing; call-site parameters cannot widen a read-only definition. Definitions that omit `tools` inherit the call-site capability choice. (Bash was never truly read-only anyway; the pool doesn't pretend otherwise.)
 - **`subagent_type` supplies defaults; the call site wins.** A definition contributes its body (layered first), its tool selection, and its model; call-site `skills` then `role` layer after the body (recency dominates instruction conflicts), and call-site `model`/`effort`/`tools` override or extend.
 - **`mutation.isolation` is required**, no default: the lock-vs-fork decision is the most consequential one a mutating call makes, so the schema forces it to be made consciously every time.
 - **`skills` is a list**: skills are composable expertise units, injected in array order. `role` layers after them so the caller's per-call intent wins conflicts with static skill text (recency dominates instruction conflicts; the focusing instruction must sit below the material it filters).
 
 Implementation notes:
 
-- Build a `ScoutConfig` at runtime: `name: "agent:"+name`, `buildSystemPrompt` layers the definition body (if `subagent_type`), then skill bodies (in `skills` order), then `role`, then a scout-shaped frame (final-message-only contract, timeout note); mutating runs get the worker-style implementation framing. Tool set = pool selection (definition ∪ call-site `tools`, base `read`+`bash` when neither selects) + `edit`/`write` iff `mutation` present.
+- Build a `ScoutConfig` at runtime: `name: "agent:"+name`, `buildSystemPrompt` layers the definition body (if `subagent_type`), then skill bodies (in `skills` order), then `role`, then a scout-shaped frame (final-message-only contract, timeout note); mutating runs get the worker-style implementation framing. Tool set = pool selection (definition ∪ call-site `tools`, base `read`+`bash` when neither selects) + `edit`/`write` iff `mutation` is present and the selected definition's explicit allowlist includes both mutating tools.
 - Definition loader: parse frontmatter per the format above at startup and on definitions-dir change; enumerate `name: description` pairs into `agent`'s schema description at registration. Shipped preset definitions port the current finder/oracle/librarian/reviewer prompts verbatim.
 - `mutation: { isolation: "shared" }` acquires the mutating-context lock, fail-fast per I1: if another shared mutating `agent` or a shared-mutating workflow holds it, the call returns `LockBusy` immediately. Read-only and workspace-isolated agents run in parallel freely.
 - Suspend/resume comes unchanged from the runs engine (registry max 5, 30 min TTL, wrap-up steering) — it served `worker`, now it serves top-level `agent` runs. Workflow children stay out of it (see Phase 2).
@@ -339,7 +339,7 @@ A durable registry (JSON file in the scouts run-log dir, one entry per spawn) is
 
 ## Safety & constraints
 
-- Read-only is the default everywhere; mutation is opt-in via schema (the `mutation` object with its required `isolation`, fleet `worktree`) — affordances the calling model reaches for deliberately. No definition file or `tools` selection can grant `edit`/`write` (pool rule, Design overview).
+- Read-only is the default everywhere; mutation is opt-in via schema (the `mutation` object with its required `isolation`, fleet `worktree`) — affordances the calling model reaches for deliberately. A definition's explicit tool allowlist is authoritative: without both `Edit` and `Write`, a caller cannot upgrade it into a mutating agent.
 - The lock serializes exactly one resource — the shared live checkout (I1). Structural isolation is lock-free: in-process workspaces (I7) and fleet worktrees (I5). Parallel *shared* mutation inside a workflow is guided (disjoint scopes), not enforced — the trust model Claude Code ships — while the workspace and fleet tiers are enforced.
 - Workspace/worktree isolation bounds *where* children write, not *what conflicts*: overlapping file scopes across workspaces/worktrees are unchecked, and merge conflicts surface at integration as expected outcomes (I5/I7; first-class conflicts under jj). Tool descriptions state the disjoint-scope guidance (fan out only across disjoint files/dirs — same guidance the herdr community skill gives).
 - Bash side effects (installs, servers, non-repo writes) are never isolated by any tier except remote fleet targets — stated in the tool descriptions rather than pretended away.

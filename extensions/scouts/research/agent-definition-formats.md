@@ -55,6 +55,6 @@ Only `description` is truly universal. `model` is common but absent from Cursor 
 - **Unknown tool names ignored with warning** — Copilot's documented behavior.
 - **User definition locations** `.pi/agents/` + `~/.pi/agent/agents/` — pi ecosystem convention.
 
-Conscious divergences: omitted `tools` = base pool (not CC's inherit-all); `Edit`/`Write` stripped from `tools` (mutation is call-site-only via the `mutation` object); CC's `isolation: worktree` frontmatter ignored (that's call-site `mutation.isolation`); no `temperature`/`thinking` (poorly portable; call-site `effort` owns it).
+Conscious divergences: omitted `tools` = base pool (not CC's inherit-all); `Edit`/`Write` in an explicit allowlist authorize but do not activate mutation (the call site must still provide the `mutation` object); CC's `isolation: worktree` frontmatter ignored (that's call-site `mutation.isolation`); no `temperature`/`thinking` (poorly portable; call-site `effort` owns it).
 
 Full librarian evidence logs (transient): `~/.cache/pi/tmp/pi-librarian-{424b0c2784cc4863,bdb5f184dfe0b567,e5d27e6886a48cf5}.log`.

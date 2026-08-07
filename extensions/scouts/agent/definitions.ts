@@ -12,6 +12,7 @@ export interface AgentDefinition {
   name: string;
   description?: string;
   tools?: string[];
+  allowsMutation?: boolean;
   model?: string;
   skills?: string[];
   systemPrompt: string;
@@ -119,7 +120,14 @@ function parseAgentDefinitionFile(sourcePath: string): { definition?: AgentDefin
   const skills = parseStringList(parsed.frontmatter.skills, "skills");
   diagnostics.push(...skills.diagnostics.map((message) => `${sourcePath}: ${message}`));
 
-  const toolResolution = tools.values ? resolveAgentToolPool(tools.values) : undefined;
+  const mutatingTools = new Set<string>(
+    (tools.values ?? [])
+      .map((tool) => tool.toLowerCase())
+      .filter((tool) => tool === "edit" || tool === "write"),
+  );
+  const allowsMutation = mutatingTools.has("edit") && mutatingTools.has("write");
+  const nonMutatingTools = tools.values?.filter((tool) => !mutatingTools.has(tool.toLowerCase()));
+  const toolResolution = nonMutatingTools ? resolveAgentToolPool(nonMutatingTools) : undefined;
   if (toolResolution) {
     diagnostics.push(...toolResolution.warnings.map((message) => `${sourcePath}: ${message}`));
   }
@@ -129,6 +137,7 @@ function parseAgentDefinitionFile(sourcePath: string): { definition?: AgentDefin
       name,
       ...(description ? { description } : {}),
       ...(toolResolution ? { tools: toolResolution.toolNames } : {}),
+      ...(allowsMutation ? { allowsMutation: true } : {}),
       ...(normalizedModel ? { model: normalizedModel } : {}),
       ...(skills.values ? { skills: skills.values } : {}),
       systemPrompt: parsed.body.trim(),

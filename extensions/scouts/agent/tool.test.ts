@@ -242,6 +242,44 @@ describe("buildAgentScoutConfig", () => {
     expect(result.config.buildSystemPrompt(600_000)).toContain("You are a bounded implementation subagent");
   });
 
+  it("does not let mutation expand a definition's tool allowlist", () => {
+    const result = buildAgentScoutConfig({
+      ...baseParams,
+      subagent_type: "finder",
+      mutation: { isolation: "shared" },
+    }, {
+      definitions: definitions({
+        name: "finder",
+        tools: ["read", "bash"],
+        systemPrompt: "Find files without changing them.",
+        sourcePath: "finder.md",
+      }),
+    });
+
+    expect(result).toEqual({
+      error: 'Agent definition "finder" does not allow mutation. Add both Edit and Write to its tools list, or omit subagent_type for an inline mutating agent.',
+    });
+  });
+
+  it("allows mutation when the definition explicitly includes Edit and Write", () => {
+    const result = buildAgentScoutConfig({
+      ...baseParams,
+      subagent_type: "implementer",
+      mutation: { isolation: "shared" },
+    }, {
+      definitions: definitions({
+        name: "implementer",
+        tools: ["read", "bash"],
+        allowsMutation: true,
+        systemPrompt: "Implement the task.",
+        sourcePath: "implementer.md",
+      }),
+    });
+
+    expect("config" in result).toBe(true);
+    if ("config" in result) expect(result.toolNames).toEqual(["read", "bash", "edit", "write"]);
+  });
+
   it("returns an error for unknown subagent_type with available names and descriptions", () => {
     const result = buildAgentScoutConfig({
       ...baseParams,
