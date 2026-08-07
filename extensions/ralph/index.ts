@@ -19,8 +19,8 @@ import {
 	ToolExecutionComponent,
 	UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
-import { TUI, Key, matchesKey } from "@earendil-works/pi-tui";
-import type { Component, Terminal, EditorTheme } from "@earendil-works/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
+import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import {
 	existsSync,
@@ -35,30 +35,9 @@ import { LoopEngine } from "./loop-engine.ts";
 import type { IterationStats, LoopConfig, LoopState } from "./types.ts";
 import { loopDir } from "./types.ts";
 
-const stubTerminal: Terminal = {
-	start() {},
-	stop() {},
-	async drainInput() {},
-	write() {},
-	get columns() {
-		return process.stdout.columns ?? 120;
-	},
-	get rows() {
-		return process.stdout.rows ?? 40;
-	},
-	get kittyProtocolActive() {
-		return false;
-	},
-	moveBy() {},
-	hideCursor() {},
-	showCursor() {},
-	clearLine() {},
-	clearFromCursor() {},
-	clearScreen() {},
-	setTitle() {},
-	setProgress() {},
-};
-const stubTui = new TUI(stubTerminal);
+// ToolExecutionComponent only calls requestRender() on its TUI dependency.
+// These components render completed, immutable tool results, so it can be a no-op.
+const renderOnlyTui = { requestRender() {} } as TUI;
 
 /**
  * Strips exactly one leading empty line from a component's render output.
@@ -360,7 +339,7 @@ export default function (pi: ExtensionAPI) {
 			args,
 			{ showImages: false },
 			undefined,
-			stubTui,
+			renderOnlyTui,
 			cwd ?? process.cwd(),
 		);
 		comp.setArgsComplete();
