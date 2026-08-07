@@ -1053,7 +1053,6 @@ class ScoutWorkflow {
       cwd: this.ctx.cwd,
       noSkills: true,
       allowExtensions: shouldLoadScoutExtensions(runPlan.model.provider),
-      extensionFactories: [],
       systemPromptOverride: () => this.systemPrompt,
       skillsOverride: () => ({ skills: [], diagnostics: [] }),
     });
